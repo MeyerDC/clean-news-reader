@@ -1,0 +1,78 @@
+/*
+ * Koppie & Print palette.
+ *
+ * Two surfaces only: a warm paper tone for light, a low-glare near-black for
+ * dark. Everything else is text at three weights of emphasis. The reading
+ * screen has no accent colour at all except links — the article is the design.
+ */
+
+:root {
+  /* Reading surfaces */
+  --cn-bg: #fbf9f6;
+  --cn-surface: #ffffff;
+  --cn-surface-sunken: #f2efea;
+
+  /* Text emphasis ladder */
+  --cn-text: #1b1b1f;
+  --cn-text-dim: #5c5c66;
+  --cn-text-faint: #8a8a94;
+
+  --cn-border: #e4e0da;
+  --cn-border-strong: #d3cec6;
+
+  --cn-accent: #b5482b;
+  --cn-accent-soft: rgba(181, 72, 43, 0.1);
+
+  --cn-danger: #b3261e;
+
+  /* FR-6: reader font size is persisted and applied to <html> at startup. */
+  --cn-reader-font-size: 19px;
+  --cn-reader-measure: 34rem;
+
+  --cn-serif: 'Noto Serif', 'Source Serif Pro', Charter, Georgia, 'Times New Roman', serif;
+  --cn-sans: 'Roboto', -apple-system, 'Segoe UI', system-ui, sans-serif;
+
+  /* Ionic surface tokens follow ours so components inherit the palette. */
+  --ion-background-color: var(--cn-bg);
+  --ion-text-color: var(--cn-text);
+  --ion-toolbar-background: var(--cn-bg);
+  --ion-item-background: transparent;
+  --ion-font-family: var(--cn-sans);
+
+  --ion-color-primary: #1b1b1f;
+  --ion-color-primary-rgb: 27, 27, 31;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #18181b;
+  --ion-color-primary-tint: #323236;
+}
+
+/* FR-6: light / dark / system. ThemeService sets .cn-dark on <html>. */
+.cn-dark {
+  --cn-bg: #16161a;
+  --cn-surface: #1e1e23;
+  --cn-surface-sunken: #121216;
+
+  --cn-text: #edeae4;
+  --cn-text-dim: #a8a8b0;
+  --cn-text-faint: #75757e;
+
+  --cn-border: #2a2a30;
+  --cn-border-strong: #3a3a42;
+
+  --cn-accent: #e08a6d;
+  --cn-accent-soft: rgba(224, 138, 109, 0.14);
+
+  --cn-danger: #f2b8b5;
+
+  --ion-background-color: var(--cn-bg);
+  --ion-text-color: var(--cn-text);
+  --ion-toolbar-background: var(--cn-bg);
+
+  --ion-color-primary: #edeae4;
+  --ion-color-primary-rgb: 237, 234, 228;
+  --ion-color-primary-contrast: #16161a;
+  --ion-color-primary-contrast-rgb: 22, 22, 26;
+  --ion-color-primary-shade: #d1cec9;
+  --ion-color-primary-tint: #efedE8;
+}

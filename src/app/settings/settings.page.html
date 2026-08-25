@@ -1,0 +1,190 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/" text="" />
+    </ion-buttons>
+    <ion-title>Settings</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="cn-settings">
+  <!-- FR-11: feeds — add, remove, reorder, enable/disable, per-feed status. -->
+  <ion-list lines="none">
+    <ion-list-header>
+      <ion-label>Feeds</ion-label>
+      <ion-button fill="clear" size="small" (click)="refreshFeeds()">
+        <ion-icon slot="icon-only" name="refresh-outline" />
+      </ion-button>
+      <ion-button fill="clear" size="small" [disabled]="finding()" (click)="addFeed()">
+        <ion-icon slot="icon-only" name="add-outline" />
+      </ion-button>
+    </ion-list-header>
+
+    <ion-reorder-group [disabled]="false" (ionItemReorder)="reorderFeeds($any($event))">
+      @for (feed of feeds(); track feed.id) {
+        <ion-item class="cn-feed">
+          <ion-reorder slot="start" />
+
+          <ion-label>
+            <h3>
+              {{ feed.sourceName }}
+              @if (isFailing(feed)) {
+                <ion-icon name="warning-outline" class="cn-feed-warning" />
+              }
+            </h3>
+            <p class="cn-feed-status" [class.cn-feed-status-bad]="isFailing(feed)">
+              {{ feedStatus(feed) }}
+            </p>
+          </ion-label>
+
+          <ion-toggle
+            slot="end"
+            [checked]="feed.enabled"
+            (ionChange)="toggleFeed(feed, $any($event).detail.checked)" />
+
+          <ion-button
+            slot="end"
+            fill="clear"
+            size="small"
+            color="medium"
+            (click)="removeFeed(feed)">
+            <ion-icon slot="icon-only" name="trash-outline" />
+          </ion-button>
+        </ion-item>
+      } @empty {
+        <ion-item>
+          <ion-label class="ion-text-wrap">
+            <p>No feeds. Add one to start.</p>
+          </ion-label>
+        </ion-item>
+      }
+    </ion-reorder-group>
+  </ion-list>
+
+  <!-- FR-1: poll interval, 15 minutes to 6 hours. -->
+  <ion-list lines="none">
+    <ion-list-header><ion-label>Refresh</ion-label></ion-list-header>
+    <ion-item>
+      <ion-select
+        label="Check feeds"
+        [value]="settings.settings().pollIntervalMinutes"
+        (ionChange)="setPollInterval($any($event).detail.value)"
+        interface="popover">
+        @for (minutes of pollChoices; track minutes) {
+          <ion-select-option [value]="minutes">{{ pollLabel(minutes) }}</ion-select-option>
+        }
+      </ion-select>
+    </ion-item>
+    <ion-note class="cn-note">
+      Runs in the background, so the widget stays current with the app closed.
+    </ion-note>
+  </ion-list>
+
+  <!-- FR-6: theme and reader font size. -->
+  <ion-list lines="none">
+    <ion-list-header><ion-label>Reading</ion-label></ion-list-header>
+
+    <ion-item>
+      <ion-select
+        label="Theme"
+        [value]="settings.settings().theme"
+        (ionChange)="setTheme($any($event).detail.value)"
+        interface="popover">
+        <ion-select-option value="system">System</ion-select-option>
+        <ion-select-option value="light">Light</ion-select-option>
+        <ion-select-option value="dark">Dark</ion-select-option>
+      </ion-select>
+    </ion-item>
+
+    <ion-item>
+      <ion-range
+        label="Text size"
+        labelPlacement="start"
+        [min]="fontMin"
+        [max]="fontMax"
+        [step]="1"
+        [snaps]="true"
+        [ticks]="false"
+        [value]="settings.settings().fontSize"
+        (ionChange)="setFontSize($any($event).detail.value)">
+        <span slot="start" class="cn-range-small">A</span>
+        <span slot="end" class="cn-range-large">A</span>
+      </ion-range>
+    </ion-item>
+
+    <p class="cn-sample" [style.font-size.px]="settings.settings().fontSize">
+      The article and nothing else.
+    </p>
+  </ion-list>
+
+  <!-- FR-5: image loading on mobile data, default on. -->
+  <ion-list lines="none">
+    <ion-list-header><ion-label>Images</ion-label></ion-list-header>
+    <ion-item>
+      <ion-toggle
+        [checked]="settings.settings().imagesOnMobileData"
+        (ionChange)="setImagesOnMobileData($any($event).detail.checked)">
+        Load images on mobile data
+      </ion-toggle>
+    </ion-item>
+  </ion-list>
+
+  <!-- FR-2: optional Guardian Open Platform key. -->
+  <ion-list lines="none">
+    <ion-list-header><ion-label>The Guardian</ion-label></ion-list-header>
+    <ion-item>
+      <ion-input
+        label="API key"
+        labelPlacement="stacked"
+        type="password"
+        placeholder="Optional"
+        [value]="settings.settings().guardianApiKey"
+        (ionBlur)="setGuardianKey($any($event).target.value ?? '')" />
+    </ion-item>
+    <ion-note class="cn-note">
+      With a key, Guardian articles come from the Open Platform API with their
+      full text, so extraction can never fail on them. Without one, the Guardian
+      is treated as an ordinary feed.
+    </ion-note>
+  </ion-list>
+
+  <!-- What search can actually reach, which is not obvious from the list. -->
+  <ion-list lines="none">
+    <ion-list-header><ion-label>Search</ion-label></ion-list-header>
+    <ion-item>
+      <ion-label>
+        <h3>Indexed articles</h3>
+        <p>
+          {{ searchStats().indexed }} searchable ·
+          {{ searchStats().withBody }} with full text ·
+          {{ searchStats().archived }} archived
+        </p>
+      </ion-label>
+    </ion-item>
+    <ion-note class="cn-note">
+      Every article's headline and summary is searchable. Full text is kept for
+      articles you've opened, and stays searchable after the article itself is
+      cleared from the cache.
+    </ion-note>
+  </ion-list>
+
+  <!-- FR-10 / FR-11: cache size and clear. -->
+  <ion-list lines="none">
+    <ion-list-header><ion-label>Storage</ion-label></ion-list-header>
+    <ion-item>
+      <ion-label>
+        <h3>Cached images</h3>
+        <p>{{ cacheLabel }}</p>
+      </ion-label>
+      <ion-button slot="end" fill="outline" size="small" (click)="clearCache()">
+        Clear cache
+      </ion-button>
+    </ion-item>
+    <ion-note class="cn-note">
+      Unread articles are kept for 7 days, read ones for 2 days. Saved articles
+      stay until you delete them, and clearing the cache never removes them.
+    </ion-note>
+  </ion-list>
+
+  <div class="cn-settings-foot"></div>
+</ion-content>

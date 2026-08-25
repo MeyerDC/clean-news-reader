@@ -1,0 +1,124 @@
+<ion-header class="cn-reader-header">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/" text="" />
+    </ion-buttons>
+
+    <ion-buttons slot="end">
+      @if (state() === 'ready') {
+        <ion-button (click)="cycleFontSize()" aria-label="Text size">
+          <ion-icon slot="icon-only" name="text-outline" />
+        </ion-button>
+      }
+      <!-- FR-7: the overflow menu is present on every article, always. -->
+      <ion-button (click)="openMenu()" aria-label="More">
+        <ion-icon slot="icon-only" name="ellipsis-vertical" />
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [scrollEvents]="true" (ionScroll)="onScroll($any($event))">
+  @switch (state()) {
+    @case ('loading') {
+      <div class="cn-state">
+        <ion-spinner name="dots" />
+        <p>Reading…</p>
+      </div>
+    }
+
+    @case ('missing') {
+      <div class="cn-state">
+        <h1>That article is gone</h1>
+        <p>It may have been cleared from the cache.</p>
+      </div>
+    }
+
+    @case ('offline') {
+      <!-- Failure-mode table: offline on an uncached article. -->
+      <div class="cn-state">
+        <ion-icon name="cloud-offline-outline" class="cn-state-icon" />
+        <h1>You're offline</h1>
+        <p>This one isn't saved on your device yet. We'll fetch it as soon as you're back on a network.</p>
+        <div class="cn-state-actions">
+          <button class="cn-btn cn-btn-primary" (click)="tryAgain()">Try again</button>
+          <button class="cn-btn" (click)="openOriginal()">Open original page</button>
+        </div>
+      </div>
+    }
+
+    @case ('failed') {
+      <!-- FR-7: never a blank reader. -->
+      <div class="cn-state">
+        <ion-icon [name]="failureIcon" class="cn-state-icon" />
+        <h1>{{ failureTitle }}</h1>
+        <p>{{ failure()?.detail }}</p>
+
+        @if (article(); as current) {
+          <p class="cn-state-source">{{ current.title }}</p>
+        }
+
+        <div class="cn-state-actions">
+          <button class="cn-btn cn-btn-primary" (click)="openOriginal()">
+            {{ primaryActionLabel }}
+          </button>
+          <button class="cn-btn" (click)="tryAgain()">Try again</button>
+        </div>
+      </div>
+    }
+
+    @case ('ready') {
+      @if (article(); as current) {
+        <!-- Offered only for a shared article from a site with no feed yet. -->
+        @if (followOffer(); as offer) {
+          <div class="cn-follow">
+            <div class="cn-follow-text">
+              <strong>Also follow {{ offer[0].title }}?</strong>
+              <span>
+                {{ offer[0].itemCount }} recent headlines
+                @if (offer.length > 1) {
+                  · <button class="cn-link" (click)="chooseFeed()">{{ offer.length }} feeds available</button>
+                }
+              </span>
+            </div>
+            <div class="cn-follow-actions">
+              <button class="cn-btn cn-btn-small" [disabled]="following()" (click)="follow(offer[0])">
+                Follow
+              </button>
+              <button class="cn-icon-btn" aria-label="Dismiss" (click)="dismissOffer()">
+                <ion-icon name="close-outline" />
+              </button>
+            </div>
+          </div>
+        }
+
+        <article class="cn-article">
+          <!-- FR-5: lead image above the article body. -->
+          @if (leadImageSrc(); as lead) {
+            <div class="cn-lead">
+              <img [src]="lead" alt="" />
+            </div>
+          }
+
+          <header class="cn-article-head">
+            <h1 class="cn-article-title">{{ current.title }}</h1>
+            <p class="cn-article-byline">{{ byline() }}</p>
+            @if (current.isArchived) {
+              <p class="cn-archived-note">
+                Kept for search after it aged out of the cache. Images were
+                released; the text is unchanged.
+              </p>
+            }
+          </header>
+
+          <!-- Populated as DOM by the component so images can stream in. -->
+          <div #body class="cn-article-body" (click)="onBodyTap($event)"></div>
+
+          <footer class="cn-article-foot">
+            <button class="cn-btn" (click)="openOriginal()">Open original page</button>
+          </footer>
+        </article>
+      }
+    }
+  }
+</ion-content>

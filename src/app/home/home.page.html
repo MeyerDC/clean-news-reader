@@ -1,0 +1,156 @@
+<ion-header class="cn-header">
+  <ion-toolbar>
+    <ion-title class="cn-wordmark">Koppie &amp; Print</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="openSettings()" aria-label="Settings">
+        <ion-icon slot="icon-only" name="settings-outline" />
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+
+  <ion-searchbar
+    class="cn-search"
+    placeholder="Search headlines and what you've read"
+    [debounce]="0"
+    [value]="query()"
+    (ionInput)="onSearch($any($event).detail.value ?? '')"
+    (ionClear)="clearSearch()" />
+
+  <!-- FR-9 filters: All / Unread / Saved / by source. Hidden while searching,
+       because a search runs across everything by design. -->
+  @if (!isSearching) {
+  <div class="cn-filters">
+    <button
+      class="cn-chip"
+      [class.cn-chip-active]="isActive({ kind: 'all' })"
+      (click)="setFilter({ kind: 'all' })">
+      All
+    </button>
+    <button
+      class="cn-chip"
+      [class.cn-chip-active]="isActive({ kind: 'unread' })"
+      (click)="setFilter({ kind: 'unread' })">
+      Unread
+    </button>
+    <button
+      class="cn-chip"
+      [class.cn-chip-active]="isActive({ kind: 'saved' })"
+      (click)="setFilter({ kind: 'saved' })">
+      Saved
+    </button>
+
+    <span class="cn-chip-divider"></span>
+
+    @for (source of sources(); track source) {
+      <button
+        class="cn-chip"
+        [class.cn-chip-active]="isActive({ kind: 'source', sourceName: source })"
+        (click)="setFilter({ kind: 'source', sourceName: source })">
+        {{ source }}
+      </button>
+    }
+  </div>
+  }
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="refresh($any($event))">
+    <ion-refresher-content pullingText="Pull to refresh" refreshingSpinner="dots" />
+  </ion-refresher>
+
+  @if (isSearching) {
+    @if (hits().length === 0) {
+      <div class="cn-centred cn-empty">
+        <ion-icon name="search-outline" />
+        @if (!searchAvailable()) {
+          <p>Search isn't available on this device.</p>
+        } @else {
+          <p>Nothing matches "{{ query() }}".</p>
+          <span class="cn-empty-meta">
+            Headlines are searchable for everything in your feeds. Full text is
+            searchable for articles you've opened.
+          </span>
+        }
+      </div>
+    } @else {
+      <ion-list lines="none">
+        @for (hit of hits(); track hit.article.id) {
+          <ion-item button detail="false" class="cn-row" (click)="open(hit.article)">
+            <div class="cn-row-body">
+              <h2 class="cn-row-title">{{ hit.article.title }}</h2>
+              <p class="cn-row-meta">
+                {{ hitMeta(hit) }}
+                @if (hit.article.isArchived) {
+                  <span class="cn-tag cn-tag-archived">
+                    <ion-icon name="archive-outline" /> Archived
+                  </span>
+                }
+              </p>
+              @if (hit.field === 'title') {
+                <!-- The headline above already shows the match; repeating it as
+                     a snippet would just say the same thing twice. -->
+                @if (hit.article.excerpt) {
+                  <p class="cn-row-excerpt">{{ hit.article.excerpt }}</p>
+                }
+              } @else {
+                <!-- snippet() returns the matching passage with <mark> around
+                     the terms, built by SQLite from text we indexed ourselves. -->
+                <p class="cn-row-excerpt cn-snippet" [innerHTML]="hit.snippet"></p>
+              }
+            </div>
+          </ion-item>
+        }
+      </ion-list>
+      <p class="cn-list-footer">{{ hits().length }} result{{ hits().length === 1 ? '' : 's' }}</p>
+    }
+  } @else if (loading()) {
+    <div class="cn-centred">
+      <ion-spinner name="dots" />
+    </div>
+  } @else if (items().length === 0) {
+    <div class="cn-centred cn-empty">
+      <ion-icon name="document-text-outline" />
+      @switch (filter().kind) {
+        @case ('unread') { <p>Nothing unread.</p> }
+        @case ('saved') { <p>Nothing saved yet. Share a link here from any app.</p> }
+        @default { <p>No articles yet. Pull down to refresh.</p> }
+      }
+      <span class="cn-empty-meta">{{ lastRefreshLabel() }}</span>
+    </div>
+  } @else {
+    <ion-list lines="none">
+      @for (article of items(); track article.id) {
+        <ion-item-sliding #sliding>
+          <ion-item
+            button
+            detail="false"
+            class="cn-row"
+            [class.cn-row-read]="article.isRead"
+            (click)="open(article)">
+            <div class="cn-row-body">
+              <h2 class="cn-row-title">{{ article.title }}</h2>
+              <p class="cn-row-meta">
+                {{ meta(article) }}
+                @if (article.isSaved && !article.feedId) {
+                  <span class="cn-tag">Saved</span>
+                }
+              </p>
+              @if (article.excerpt) {
+                <p class="cn-row-excerpt">{{ article.excerpt }}</p>
+              }
+            </div>
+          </ion-item>
+
+          <!-- FR-9: swipe to dismiss. -->
+          <ion-item-options side="end">
+            <ion-item-option color="danger" (click)="dismiss(article, sliding)">
+              <ion-icon slot="icon-only" name="trash-outline" />
+            </ion-item-option>
+          </ion-item-options>
+        </ion-item-sliding>
+      }
+    </ion-list>
+
+    <p class="cn-list-footer">{{ lastRefreshLabel() }}</p>
+  }
+</ion-content>

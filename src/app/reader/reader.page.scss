@@ -1,0 +1,219 @@
+.cn-reader-header ion-toolbar {
+  --background: var(--cn-bg);
+  --border-width: 0;
+  --color: var(--cn-text-dim);
+}
+
+.cn-article {
+  padding: 0 0 4rem;
+}
+
+/* FR-5: lead image sits above the body, full bleed to the screen edges. */
+.cn-lead {
+  width: 100%;
+  margin-bottom: 1.6rem;
+  background: var(--cn-surface-sunken);
+
+  img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+}
+
+.cn-article-head {
+  max-width: var(--cn-reader-measure);
+  margin: 0 auto 1.7rem;
+  padding: 0 1.25rem;
+}
+
+.cn-article-title {
+  font-family: var(--cn-sans);
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.022em;
+  color: var(--cn-text);
+  margin: 0.4rem 0 0.7rem;
+  text-wrap: balance;
+}
+
+.cn-article-byline {
+  font-family: var(--cn-sans);
+  font-size: 0.775rem;
+  line-height: 1.5;
+  color: var(--cn-text-faint);
+  margin: 0;
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid var(--cn-border);
+}
+
+/* The body's own typography lives in global.scss so the rules sit next to the
+   figure styles that the component injects at runtime. */
+.cn-article-body {
+  padding: 0 1.25rem;
+}
+
+.cn-article-foot {
+  max-width: var(--cn-reader-measure);
+  margin: 2.5rem auto 0;
+  padding: 1.5rem 1.25rem 0;
+  border-top: 1px solid var(--cn-border);
+  display: flex;
+  justify-content: center;
+}
+
+/* -------------------------------------------------------------------------
+   FR-7 states: loading, offline, extraction failure. Same shape each time so
+   the app never looks like it broke, only like it has something to say.
+   ------------------------------------------------------------------------- */
+
+.cn-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 72vh;
+  padding: 0 2rem;
+  gap: 0.55rem;
+
+  h1 {
+    font-family: var(--cn-sans);
+    font-size: 1.15rem;
+    font-weight: 650;
+    letter-spacing: -0.014em;
+    color: var(--cn-text);
+    margin: 0;
+  }
+
+  p {
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--cn-text-dim);
+    margin: 0;
+    max-width: 22rem;
+  }
+}
+
+.cn-state-icon {
+  font-size: 2.1rem;
+  color: var(--cn-text-faint);
+  margin-bottom: 0.2rem;
+}
+
+.cn-state-source {
+  font-family: var(--cn-serif);
+  font-style: italic;
+  color: var(--cn-text-faint) !important;
+  font-size: 0.86rem !important;
+  margin-top: 0.4rem !important;
+}
+
+.cn-state-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: 100%;
+  max-width: 17rem;
+  margin-top: 1.3rem;
+}
+
+.cn-btn {
+  font-family: var(--cn-sans);
+  font-size: 0.88rem;
+  font-weight: 550;
+  padding: 0.72rem 1.2rem;
+  border-radius: 8px;
+  border: 1px solid var(--cn-border-strong);
+  background: transparent;
+  color: var(--cn-text);
+  width: 100%;
+}
+
+/* FR-7 asks for a prominent route to the original page. */
+.cn-btn-primary {
+  background: var(--cn-text);
+  border-color: var(--cn-text);
+  color: var(--cn-bg);
+}
+
+/* Offer to follow a shared article's site. Sits above the article as a quiet
+   strip: present enough to notice, never in the way of reading. */
+.cn-follow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 1rem 1.1rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--cn-border);
+  border-radius: 10px;
+  background: var(--cn-surface-sunken);
+}
+
+.cn-follow-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-family: var(--cn-sans);
+
+  strong {
+    font-size: 0.87rem;
+    font-weight: 600;
+    color: var(--cn-text);
+  }
+
+  span {
+    font-size: 0.75rem;
+    color: var(--cn-text-faint);
+  }
+}
+
+.cn-follow-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.cn-btn-small {
+  width: auto;
+  padding: 0.42rem 0.9rem;
+  font-size: 0.8rem;
+}
+
+.cn-icon-btn {
+  background: none;
+  border: 0;
+  padding: 0.35rem;
+  color: var(--cn-text-faint);
+  display: flex;
+
+  ion-icon {
+    font-size: 1.1rem;
+  }
+}
+
+.cn-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--cn-accent);
+  text-decoration: underline;
+}
+
+/* Explains why an archived article has no pictures, so its absence reads as
+   a decision rather than a failure. */
+.cn-archived-note {
+  font-family: var(--cn-sans);
+  font-size: 0.73rem;
+  line-height: 1.5;
+  color: var(--cn-text-faint);
+  margin: 0.6rem 0 0;
+  padding: 0.5rem 0.6rem;
+  border-left: 2px solid var(--cn-border-strong);
+  background: var(--cn-surface-sunken);
+  border-radius: 0 4px 4px 0;
+}

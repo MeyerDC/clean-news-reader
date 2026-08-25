@@ -1,0 +1,5 @@
+# Clean News ships only to Android (spec section 3: no iOS, no web).
+# Chrome 111 is Angular 22's floor and is comfortably below the Android System
+# WebView version on any device still receiving Play Store updates, which is
+# what actually renders this app — not the OS version in minSdk.
+Chrome >= 111

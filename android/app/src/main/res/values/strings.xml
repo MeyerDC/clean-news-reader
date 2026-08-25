@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Koppie &amp; Print</string>
+    <string name="title_activity_main">Koppie &amp; Print</string>
+    <string name="package_name">com.dmeyer.cleannews</string>
+    <string name="custom_url_scheme">com.dmeyer.cleannews</string>
+    <string name="share_target_label">Read in Koppie &amp; Print</string>
+    <string name="widget_label">Koppie &amp; Print headlines</string>
+    <string name="widget_description">Current headlines from your feeds.</string>
+    <string name="widget_refresh">Refresh</string>
+    <string name="widget_refreshing">Refreshing…</string>
+    <string name="widget_updated">Updated %1$s</string>
+    <string name="widget_never_refreshed">Not refreshed yet</string>
+    <!-- FR-3 empty state, verbatim from the requirements. -->
+    <string name="widget_empty">No articles yet — tap to refresh.</string>
+</resources>

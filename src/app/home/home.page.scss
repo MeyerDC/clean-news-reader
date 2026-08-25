@@ -1,0 +1,198 @@
+.cn-header {
+  ion-toolbar {
+    --background: var(--cn-bg);
+    --border-width: 0;
+  }
+
+  /* Sized by .cn-wordmark in global.scss, which carries the display face. */
+  ion-title {
+    font-size: 1.05rem;
+
+    &.cn-wordmark {
+      font-size: 1.2rem;
+    }
+  }
+}
+
+/* Filter chips scroll horizontally: the source list grows with the feed list
+   and must never wrap into a second row that pushes the articles down. */
+.cn-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.9rem 0.65rem;
+  overflow-x: auto;
+  background: var(--cn-bg);
+  border-bottom: 1px solid var(--cn-border);
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.cn-chip {
+  flex: 0 0 auto;
+  padding: 0.32rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--cn-border-strong);
+  background: transparent;
+  color: var(--cn-text-dim);
+  font-family: var(--cn-sans);
+  font-size: 0.79rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.cn-chip-active {
+  background: var(--cn-text);
+  border-color: var(--cn-text);
+  color: var(--cn-bg);
+}
+
+.cn-chip-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 1.1rem;
+  background: var(--cn-border-strong);
+  margin: 0 0.15rem;
+}
+
+.cn-row {
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --background: transparent;
+  --background-hover: var(--cn-surface-sunken);
+}
+
+.cn-row-body {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--cn-border);
+}
+
+.cn-row-title {
+  font-family: var(--cn-sans);
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.011em;
+  color: var(--cn-text);
+  margin: 0 0 0.28rem;
+}
+
+.cn-row-meta {
+  font-size: 0.74rem;
+  color: var(--cn-text-faint);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cn-row-excerpt {
+  font-size: 0.83rem;
+  line-height: 1.45;
+  color: var(--cn-text-dim);
+  margin: 0.35rem 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Read articles recede rather than disappear. */
+.cn-row-read {
+  .cn-row-title {
+    color: var(--cn-text-dim);
+    font-weight: 500;
+  }
+
+  .cn-row-excerpt {
+    color: var(--cn-text-faint);
+  }
+}
+
+.cn-tag {
+  font-size: 0.63rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cn-accent);
+  background: var(--cn-accent-soft);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+}
+
+.cn-centred {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 60vh;
+  padding: 0 2.5rem;
+  text-align: center;
+}
+
+.cn-empty {
+  color: var(--cn-text-dim);
+
+  ion-icon {
+    font-size: 2rem;
+    color: var(--cn-text-faint);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+}
+
+.cn-empty-meta,
+.cn-list-footer {
+  font-size: 0.73rem;
+  color: var(--cn-text-faint);
+}
+
+.cn-list-footer {
+  text-align: center;
+  padding: 1.1rem 0 2rem;
+  margin: 0;
+}
+
+.cn-search {
+  --background: var(--cn-surface-sunken);
+  --border-radius: 10px;
+  --box-shadow: none;
+  --color: var(--cn-text);
+  --placeholder-color: var(--cn-text-faint);
+  --icon-color: var(--cn-text-faint);
+  padding: 0 0.75rem 0.6rem;
+}
+
+/* The matched passage, with FTS5's <mark> left intact. */
+.cn-snippet {
+  -webkit-line-clamp: 3;
+
+  ::ng-deep mark {
+    background: var(--cn-accent-soft);
+    color: var(--cn-text);
+    font-weight: 600;
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+}
+
+.cn-tag-archived {
+  color: var(--cn-text-faint);
+  background: var(--cn-surface-sunken);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+
+  ion-icon {
+    font-size: 0.7rem;
+  }
+}

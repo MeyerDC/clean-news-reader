@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Press feedback for widget rows.
+
+     RemoteViews are inflated in the launcher's process against the launcher's
+     theme, so "?android:attr/selectableItemBackground" cannot be resolved here
+     and makes the whole widget fail to inflate. A drawable from our own package
+     with literal colours always resolves. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="@color/widget_ripple">
+    <item android:id="@android:id/mask">
+        <color android:color="#FFFFFFFF" />
+    </item>
+</ripple>

@@ -1,0 +1,296 @@
+/*
+ * App Global CSS
+ * ----------------------------------------------------------------------------
+ * Put style rules here that you want to apply globally. These styles are for
+ * the entire app and not just one component. Additionally, this file can be
+ * used as an entry point to import other CSS/Sass files to be included in the
+ * output CSS.
+ * For more information on global stylesheets, visit the documentation:
+ * https://ionicframework.com/docs/layout/global-stylesheets
+ */
+
+/* Core CSS required for Ionic components to work properly */
+@import "@ionic/angular/css/core.css";
+
+/* Basic CSS for apps built with Ionic */
+@import "@ionic/angular/css/normalize.css";
+@import "@ionic/angular/css/structure.css";
+@import "@ionic/angular/css/typography.css";
+@import "@ionic/angular/css/display.css";
+
+/* Optional CSS utils that can be commented out */
+@import "@ionic/angular/css/padding.css";
+@import "@ionic/angular/css/float-elements.css";
+@import "@ionic/angular/css/text-alignment.css";
+@import "@ionic/angular/css/text-transformation.css";
+@import "@ionic/angular/css/flex-utils.css";
+
+/**
+ * Ionic Dark Mode
+ * -----------------------------------------------------
+ * For more info, please see:
+ * https://ionicframework.com/docs/theming/dark-mode
+ */
+
+/*
+ * Class-based, not system-based: FR-6 gives the user an explicit
+ * light / dark / system choice, and ThemeService resolves "system" itself so
+ * that all three settings go through one code path.
+ */
+@import "@ionic/angular/css/palettes/dark.class.css";
+
+/* ==========================================================================
+   Koppie & Print
+   ========================================================================== */
+
+/*
+ * Playfair Display, for the wordmark only.
+ *
+ * Bundled rather than linked from a CDN: this app is expected to work in
+ * airplane mode, and it should not need a network round-trip to draw its own
+ * name. Latin subset at one weight is 38 KB — the wordmark needs eleven
+ * distinct glyphs, so anything more is dead weight.
+ *
+ * SIL Open Font License 1.1; the licence travels with it in this directory.
+ */
+@font-face {
+  font-family: 'Playfair Display';
+  font-style: normal;
+  font-weight: 700;
+  /* block, not swap: the wordmark rendering in Roboto and then jumping to a
+     serif is worse than it appearing a few milliseconds later, and the file is
+     local so the wait is never long. */
+  font-display: block;
+  src: url('/assets/fonts/PlayfairDisplay-Bold-latin.woff2') format('woff2');
+}
+
+/*
+ * The app's name, wherever it appears. A high-contrast display serif needs a
+ * touch more size and tighter tracking than the UI sans it sits beside.
+ */
+.cn-wordmark {
+  font-family: 'Playfair Display', var(--cn-serif);
+  font-weight: 700;
+  font-size: 1.2rem;
+  letter-spacing: -0.005em;
+}
+
+html,
+body {
+  background: var(--cn-bg);
+  color: var(--cn-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Nothing in this app is a text field, so a long-press selection popup on a
+   headline is only ever an accident. The article body opts back in below. */
+ion-content,
+ion-list,
+ion-item {
+  -webkit-touch-callout: none;
+}
+
+ion-toolbar {
+  --border-color: var(--cn-border);
+  --color: var(--cn-text);
+}
+
+ion-title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* --------------------------------------------------------------------------
+   Article body (FR-6)
+
+   "Reading is the entire point; typography is not a detail here."
+
+   Serif face, a measure that lands near 65 characters, and line height that
+   stays generous as the user scales the text up.
+   -------------------------------------------------------------------------- */
+
+.cn-article-body {
+  font-family: var(--cn-serif);
+  font-size: var(--cn-reader-font-size);
+  line-height: 1.65;
+  color: var(--cn-text);
+  max-width: var(--cn-reader-measure);
+  margin: 0 auto;
+  /* The body is the one place selection is useful. */
+  -webkit-touch-callout: default;
+  user-select: text;
+
+  p {
+    margin: 0 0 1.15em;
+    /* Hyphenation keeps the ragged edge calm at a narrow measure. */
+    hyphens: auto;
+    overflow-wrap: break-word;
+  }
+
+  /* Opening paragraph sets the page's rhythm; no indent, no drop cap. */
+  > p:first-of-type {
+    margin-top: 0;
+  }
+
+  h2,
+  h3,
+  h4 {
+    font-family: var(--cn-sans);
+    font-weight: 650;
+    line-height: 1.3;
+    letter-spacing: -0.012em;
+    color: var(--cn-text);
+    margin: 1.9em 0 0.6em;
+  }
+
+  h2 { font-size: 1.14em; }
+  h3 { font-size: 1.05em; }
+  h4 { font-size: 1em; }
+
+  a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--cn-accent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+
+  blockquote {
+    margin: 1.6em 0;
+    padding-left: 1.1em;
+    border-left: 2px solid var(--cn-accent);
+    color: var(--cn-text-dim);
+    font-style: italic;
+  }
+
+  ul,
+  ol {
+    margin: 0 0 1.15em;
+    padding-left: 1.35em;
+  }
+
+  li {
+    margin-bottom: 0.45em;
+  }
+
+  hr {
+    border: 0;
+    border-top: 1px solid var(--cn-border);
+    margin: 2em auto;
+    width: 40%;
+  }
+
+  code,
+  pre {
+    font-family: ui-monospace, 'Roboto Mono', monospace;
+    font-size: 0.88em;
+  }
+
+  pre {
+    background: var(--cn-surface-sunken);
+    padding: 0.9em 1em;
+    border-radius: 6px;
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+    margin: 1.5em 0;
+    display: block;
+    overflow-x: auto;
+
+    th,
+    td {
+      border: 1px solid var(--cn-border);
+      padding: 0.45em 0.6em;
+      text-align: left;
+    }
+  }
+
+  /* FR-2: Guardian licence attribution. */
+  .cn-attribution {
+    margin-top: 2em;
+    font-family: var(--cn-sans);
+    font-size: 0.8em;
+    color: var(--cn-text-faint);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Images inside the body (FR-5)
+
+   Every image is wrapped in a figure that reserves its aspect ratio before the
+   file has loaded, so nothing on screen moves while the reader is reading.
+   -------------------------------------------------------------------------- */
+
+.cn-figure {
+  /* Images run to the full content width, wider than the text measure. */
+  margin: 1.8em 0;
+  width: 100%;
+
+  .cn-figure-frame {
+    position: relative;
+    width: 100%;
+    background: var(--cn-surface-sunken);
+    border-radius: 4px;
+    overflow: hidden;
+    /* Replaced by the real ratio once we know it. */
+    aspect-ratio: var(--cn-ratio, 3 / 2);
+  }
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 220ms ease;
+  }
+
+  img.cn-loaded {
+    opacity: 1;
+  }
+
+  figcaption {
+    font-family: var(--cn-sans);
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--cn-text-faint);
+    margin-top: 0.5em;
+    padding: 0 0.1em;
+  }
+}
+
+/* An image we could not fetch is removed outright rather than shown broken
+   (FR-5); this covers the moment between failure and removal. */
+.cn-figure.cn-figure-failed {
+  display: none;
+}
+
+/* Marks where a video embed was, in an article that is otherwise real prose.
+   The player itself stays on the publisher's page — letting an iframe back in
+   would undo the sanitising the reader depends on. */
+.cn-article-body [data-cn-video] {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1.6em 0;
+  padding: 0.85em 1em;
+  font-family: var(--cn-sans);
+  font-size: 0.82rem;
+  color: var(--cn-text-dim);
+  background: var(--cn-surface-sunken);
+  border: 1px solid var(--cn-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cn-article-body [data-cn-video]::before {
+  content: '▶';
+  flex: 0 0 auto;
+  font-size: 0.9rem;
+  color: var(--cn-accent);
+}

@@ -1,0 +1,88 @@
+.cn-settings {
+  --background: var(--cn-bg);
+}
+
+ion-list {
+  background: transparent;
+  margin-bottom: 0.5rem;
+}
+
+ion-list-header {
+  padding-inline-start: 1.1rem;
+  align-items: center;
+
+  ion-label {
+    font-family: var(--cn-sans);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--cn-text-faint);
+  }
+}
+
+ion-item {
+  --background: transparent;
+  --padding-start: 1.1rem;
+  --inner-padding-end: 0.6rem;
+  --min-height: 3.1rem;
+
+  h3 {
+    font-family: var(--cn-sans);
+    font-size: 0.93rem;
+    font-weight: 550;
+    color: var(--cn-text);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  p {
+    font-size: 0.76rem;
+    color: var(--cn-text-faint);
+  }
+}
+
+.cn-feed-warning {
+  color: var(--cn-danger);
+  font-size: 0.85rem;
+}
+
+/* FR-11: a failing feed is flagged, but polling continues, so this is a
+   notice rather than an alarm. */
+.cn-feed-status-bad {
+  color: var(--cn-danger) !important;
+}
+
+.cn-note {
+  display: block;
+  padding: 0.15rem 1.15rem 0.3rem;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--cn-text-faint);
+}
+
+/* Shows the chosen size in the face the article will actually use. */
+.cn-sample {
+  font-family: var(--cn-serif);
+  line-height: 1.6;
+  color: var(--cn-text-dim);
+  margin: 0.2rem 1.15rem 0.6rem;
+  padding: 0.85rem 1rem;
+  background: var(--cn-surface-sunken);
+  border-radius: 8px;
+}
+
+.cn-range-small {
+  font-size: 0.72rem;
+  color: var(--cn-text-faint);
+}
+
+.cn-range-large {
+  font-size: 1.05rem;
+  color: var(--cn-text-faint);
+}
+
+.cn-settings-foot {
+  height: 2.5rem;
+}

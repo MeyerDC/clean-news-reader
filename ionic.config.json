@@ -1,0 +1,7 @@
+{
+  "name": "clean-news-reader",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}

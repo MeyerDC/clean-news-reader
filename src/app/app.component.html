@@ -1,0 +1,11 @@
+<ion-app>
+  @if (bootstrap.fatalError(); as error) {
+    <!-- Goal 3: never a blank screen, not even when startup itself fails. -->
+    <div class="cn-fatal">
+      <h1><span class="cn-wordmark">Koppie &amp; Print</span> can't start</h1>
+      <p>{{ error }}</p>
+    </div>
+  } @else {
+    <ion-router-outlet />
+  }
+</ion-app>
