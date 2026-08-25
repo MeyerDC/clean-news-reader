@@ -292,18 +292,45 @@ object FeedParser {
 object Html {
     private val TAG = Regex("<[^>]*>")
     private val WHITESPACE = Regex("\\s+")
+    private val ENTITY = Regex("&(#[0-9]+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);")
 
+    private val NAMED = mapOf(
+        "nbsp" to "\u00A0",
+        "amp" to "&",
+        "lt" to "<",
+        "gt" to ">",
+        "quot" to "\"",
+        "apos" to "'"
+    )
+
+    /**
+     * Decodes entities first, then strips tags, in a single pass.
+     *
+     * Order matters: stripping first lets a feed smuggle markup past the
+     * stripper as `&lt;img src=x onerror=...&gt;` and have the decode step
+     * rebuild it into a live tag. A single pass also leaves `&amp;lt;` as the
+     * literal `&lt;` the publisher wrote rather than decoding it twice.
+     */
     fun stripTags(value: String?): String? {
         if (value.isNullOrBlank()) return null
-        val text = TAG.replace(value, " ")
-            .replace("&nbsp;", " ")
-            .replace("&amp;", "&")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&quot;", "\"")
-            .replace("&#39;", "'")
-            .replace("&apos;", "'")
+        val decoded = ENTITY.replace(value) { match ->
+            decodeEntity(match.groupValues[1]) ?: match.value
+        }
+        // \s does not match U+00A0, so fold it in before collapsing runs.
+        val text = TAG.replace(decoded, " ").replace('\u00A0', ' ')
         return WHITESPACE.replace(text, " ").trim().ifEmpty { null }
+    }
+
+    /** Null for anything unrecognised, so the source text survives untouched. */
+    private fun decodeEntity(body: String): String? {
+        if (!body.startsWith("#")) return NAMED[body.lowercase()]
+        val code = when (body[1]) {
+            'x', 'X' -> body.substring(2).toIntOrNull(16)
+            else -> body.substring(1).toIntOrNull()
+        } ?: return null
+        // Nulls, surrogate halves and out-of-range code points are not text.
+        if (code == 0 || code > 0x10FFFF || code in 0xD800..0xDFFF) return null
+        return String(Character.toChars(code))
     }
 
     fun textLength(html: String?): Int = stripTags(html)?.length ?: 0

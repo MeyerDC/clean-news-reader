@@ -5,6 +5,24 @@
   <meta charset="utf-8" />
   <title>Koppie &amp; Print</title>
 
+  <!--
+    The reader injects publisher HTML into the DOM, so this is the backstop
+    underneath extraction.service.ts rather than the first line of defence.
+      script-src   no inline scripts are emitted; angular.json turns
+                   inlineCritical off so the build adds no onload= handler.
+      style-src    'unsafe-inline' is unavoidable — Angular and Ionic append
+                   component <style> elements at runtime and a static
+                   index.html cannot carry a per-load nonce. Styles are not a
+                   script execution vector.
+      img-src      every rendered image is a local file resolved through
+                   Capacitor.convertFileSrc(); the webview never loads a
+                   remote image, so this doubles as an exfiltration block.
+      connect-src  CapacitorHttp rewrites publisher requests onto the local
+                   bridge origin, so 'self' covers them.
+      media/frame  the sanitiser's allowlist has no video, audio or iframe.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://localhost capacitor://localhost; font-src 'self' data:; connect-src 'self' https://localhost capacitor://localhost; media-src 'none'; object-src 'none'; frame-src 'none'; child-src 'none'; base-uri 'self'; form-action 'none'" />
+
   <base href="/" />
 
   <meta name="color-scheme" content="light dark" />
