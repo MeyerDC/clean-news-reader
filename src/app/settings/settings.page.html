@@ -41,6 +41,40 @@
     </ion-note>
   </ion-list>
 
+  <!-- Optional sync. Local-first stays the default: with nothing linked the
+       app polls publishers itself, exactly as before.
+
+       Above the feed list, because a linked account can bring thirty feeds
+       with it and this is the control you need when you cannot see it. -->
+  <ion-list lines="none">
+    <ion-list-header><ion-label>Sync</ion-label></ion-list-header>
+    <ion-item>
+      <ion-label class="ion-text-wrap">
+        <h3>NewsBlur</h3>
+        <p>{{ syncStatus }}</p>
+      </ion-label>
+      @if (sync.linked) {
+        <ion-button slot="end" fill="clear" size="small" [disabled]="sync.syncing()" (click)="syncNow()">
+          <ion-icon slot="icon-only" name="refresh-outline" />
+        </ion-button>
+        <ion-button slot="end" fill="outline" size="small" color="medium" (click)="unlinkAccount()">
+          Unlink
+        </ion-button>
+      } @else {
+        <ion-button slot="end" fill="outline" size="small" [disabled]="finding()" (click)="linkAccount()">
+          Link
+        </ion-button>
+      }
+    </ion-item>
+    <ion-note class="cn-note">
+      Your feed list and what you've read follow you between devices. Feeds you
+      add here can be pushed up to NewsBlur — you're asked first — and removing
+      one here unsubscribes the account. Articles are still fetched and rendered
+      on this phone; NewsBlur only says which stories exist and which you've
+      seen. The password signs you in once and is not stored.
+    </ion-note>
+  </ion-list>
+
   <!-- FR-11: feeds — add, remove, reorder, enable/disable, per-feed status. -->
   <ion-list lines="none">
     <ion-list-header>
@@ -96,37 +130,6 @@
         </ion-item>
       }
     </ion-reorder-group>
-  </ion-list>
-
-  <!-- Optional sync. Local-first stays the default: with nothing linked the
-       app polls publishers itself, exactly as before. -->
-  <ion-list lines="none">
-    <ion-list-header><ion-label>Sync</ion-label></ion-list-header>
-    <ion-item>
-      <ion-label class="ion-text-wrap">
-        <h3>NewsBlur</h3>
-        <p>{{ syncStatus }}</p>
-      </ion-label>
-      @if (sync.linked) {
-        <ion-button slot="end" fill="clear" size="small" [disabled]="sync.syncing()" (click)="syncNow()">
-          <ion-icon slot="icon-only" name="refresh-outline" />
-        </ion-button>
-        <ion-button slot="end" fill="outline" size="small" color="medium" (click)="unlinkAccount()">
-          Unlink
-        </ion-button>
-      } @else {
-        <ion-button slot="end" fill="outline" size="small" [disabled]="finding()" (click)="linkAccount()">
-          Link
-        </ion-button>
-      }
-    </ion-item>
-    <ion-note class="cn-note">
-      Your feed list and what you've read follow you between devices. Feeds you
-      add here can be pushed up to NewsBlur — you're asked first — and removing
-      one here unsubscribes the account. Articles are still fetched and rendered
-      on this phone; NewsBlur only says which stories exist and which you've
-      seen. The password signs you in once and is not stored.
-    </ion-note>
   </ion-list>
 
   <!-- FR-1: poll interval, 15 minutes to 6 hours. -->
