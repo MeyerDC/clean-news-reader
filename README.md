@@ -11,6 +11,22 @@ and sharing an article from a new site offers to follow its feed.
 Single user. No accounts, no sync, no backend. Installed by sideload or a
 personal Play Console track.
 
+## Releasing
+
+`npm run release` — builds the web bundle, syncs it into Android, assembles the
+signed APK, then **proves the APK contains that bundle**.
+
+The last step is the reason the script exists. The Angular build writes to
+`www/`, Gradle packages `android/app/src/main/assets/public/`, and only
+`npx cap sync android` joins the two. Skip the sync and Gradle ships the
+previous bundle inside an APK with the right version number, the right
+signature, and every other check passing — which is how a security fix once
+reached GitHub in source and was missing from the published binary.
+
+Comparing chunk *names* would not have caught it: a rebuild can keep a chunk's
+name and change its contents. Every file is compared by hash instead.
+`npm run release:verify` runs the check alone against an existing APK.
+
 ## Running it
 
 ```bash
