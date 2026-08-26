@@ -228,7 +228,11 @@ export class NewsBlurBridge implements SyncBridge {
         try {
           return JSON.parse(response.data) as Record<string, unknown>;
         } catch {
-          return null;
+          // Not JSON, so it did not come from the API. Returning null here
+          // used to make a blocked request look like a rejected password,
+          // which sends someone off to retype a password that was right all
+          // along. Whatever answered instead gets named.
+          throw new Error(describeInterception(response.status, response.data));
         }
       }
       return (response.data ?? null) as Record<string, unknown> | null;
@@ -238,6 +242,30 @@ export class NewsBlurBridge implements SyncBridge {
       );
     }
   }
+}
+
+/**
+ * Something other than the API answered. Usually a network appliance: a
+ * captive portal, a corporate or ISP filter, or Cloudflare refusing the
+ * request before NewsBlur ever sees it.
+ *
+ * The page's own code is pulled out when it has one, because "Error 1032" is
+ * searchable and "could not sign in" is not.
+ */
+export function describeInterception(status: number, body: string): string {
+  const code = /error[^0-9]{0,12}(\d{3,4})/i.exec(body)?.[1];
+  const title = /<title[^>]*>([^<]{3,80})<\/title>/i.exec(body)?.[1]?.trim();
+
+  const who = code
+    ? `something on the network blocked it (error ${code})`
+    : title
+      ? `something on the network answered instead: "${title}"`
+      : 'something on the network answered instead of NewsBlur';
+
+  return (
+    `Could not reach NewsBlur — ${who}, HTTP ${status}. ` +
+    'Your password was never sent. Try another network, or turn off any VPN or ad-blocking DNS.'
+  );
 }
 
 /** The API reports field-level problems rather than a single message. */
