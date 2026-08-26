@@ -33,7 +33,15 @@ object Schema {
             lastEtag TEXT,
             lastModified TEXT,
             consecutiveFailures INTEGER NOT NULL DEFAULT 0,
-            lastError TEXT
+            lastError TEXT,
+            -- Publication date of the newest item seen on the last poll. An
+            -- archive feed parses perfectly and reports no error, so this is
+            -- what distinguishes "healthy" from "hasn't published since 2021".
+            lastItemAt INTEGER,
+            -- When this feed last actually produced a new article. Observed
+            -- rather than inferred, and the only signal that works for feeds
+            -- carrying no dates at all.
+            lastNewArticleAt INTEGER
         )
         """,
         """
@@ -73,6 +81,28 @@ object Schema {
             width INTEGER,
             height INTEGER,
             caption TEXT
+        )
+        """,
+        // A topic is a rule over articles, not a tag on a feed. Only the web
+        // layer evaluates it, but the definition lives here with the rest.
+        """
+        CREATE TABLE IF NOT EXISTS topics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            sortOrder INTEGER NOT NULL DEFAULT 0,
+            feedIds TEXT,
+            categories TEXT,
+            keywords TEXT
+        )
+        """,
+        // A feed deleted locally while a sync account is linked. Without it the
+        // next pull re-adds the feed: the service still has it, and "absent
+        // locally" is indistinguishable from "not yet pulled".
+        """
+        CREATE TABLE IF NOT EXISTS deleted_feeds (
+            remoteId TEXT PRIMARY KEY,
+            url TEXT NOT NULL,
+            deletedAt INTEGER NOT NULL
         )
         """,
         // Settings live in the database rather than in Preferences because the
@@ -134,7 +164,24 @@ object Schema {
     val ADDED_COLUMNS: List<Pair<String, String>> = listOf(
         "isArchived" to "ALTER TABLE articles ADD COLUMN isArchived INTEGER NOT NULL DEFAULT 0",
         "archivedAt" to "ALTER TABLE articles ADD COLUMN archivedAt INTEGER",
-        "indexedAt" to "ALTER TABLE articles ADD COLUMN indexedAt INTEGER"
+        "indexedAt" to "ALTER TABLE articles ADD COLUMN indexedAt INTEGER",
+        // The sync service's identifier for this story, needed to push read
+        // state back. Null for anything the app fetched by itself.
+        "remoteHash" to "ALTER TABLE articles ADD COLUMN remoteHash TEXT",
+        // Set when a local read has not yet been acknowledged by the service.
+        "readPushPending" to "ALTER TABLE articles ADD COLUMN readPushPending INTEGER NOT NULL DEFAULT 0",
+        // Pipe-delimited and pipe-wrapped, lowercased: "|sport|maverick news|".
+        // The wrapping pipes let a rule match a whole category exactly with
+        // LIKE '%|sport|%' rather than catching "sports betting" by accident.
+        "categories" to "ALTER TABLE articles ADD COLUMN categories TEXT"
+    )
+
+    /** Same idea for the feeds table. */
+    val ADDED_FEED_COLUMNS: List<Pair<String, String>> = listOf(
+        "lastItemAt" to "ALTER TABLE feeds ADD COLUMN lastItemAt INTEGER",
+        "lastNewArticleAt" to "ALTER TABLE feeds ADD COLUMN lastNewArticleAt INTEGER",
+        // Identity of this feed on the sync service, when one is linked.
+        "remoteId" to "ALTER TABLE feeds ADD COLUMN remoteId TEXT"
     )
 }
 
@@ -153,10 +200,18 @@ object SettingKeys {
     const val GUARDIAN_API_KEY = "guardianApiKey"
     const val THEME = "theme"
     const val FONT_SIZE = "fontSize"
+    const val LIST_DENSITY = "listDensity"
     const val IMAGES_ON_MOBILE_DATA = "imagesOnMobileData"
     const val LAST_REFRESH_AT = "lastRefreshAt"
     const val LAST_CLEANUP_AT = "lastCleanupAt"
     const val FEEDS_SEEDED = "feedsSeeded"
+
+    /** Sync. Empty provider means local-only, which is the default. */
+    const val SYNC_PROVIDER = "syncProvider"
+    const val SYNC_ACCOUNT = "syncAccount"
+    /** The service's own user id, so a changed identity is detected. */
+    const val SYNC_REMOTE_USER = "syncRemoteUser"
+    const val SYNC_LAST_AT = "syncLastAt"
 }
 
 /** Values of articles.extractionState. */

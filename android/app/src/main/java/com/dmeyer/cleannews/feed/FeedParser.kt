@@ -22,7 +22,14 @@ data class ParsedItem(
      * present FR-1 says we store it and never perform an extraction fetch.
      */
     val fullContentHtml: String?,
-    val imageUrl: String?
+    val imageUrl: String?,
+    /**
+     * Per-item <category> values, lowercased. These are the only article-level
+     * topic signal most publishers give: a Daily Maverick rugby piece carries
+     * "sport" even though its feed is general-interest and its URL says
+     * "/article/". Feeds vary — MyBroadband and IOL publish none at all.
+     */
+    val categories: List<String>
 )
 
 data class ParsedFeed(
@@ -164,6 +171,19 @@ object FeedParser {
 
             "description", "summary" -> item.summary = text(parser)
 
+            "category" -> {
+                // RSS puts it in the element text; Atom uses a term attribute.
+                val value = parser.getAttributeValue(null, "term")
+                val text = text(parser)
+                // Daily Maverick packs several categories into one element:
+                // "Maverick Life,Johannesburg". Split, or the pick-list offers
+                // that pair as a single unusable option.
+                (value ?: text)?.split(',')
+                    ?.map { it.trim().lowercase(Locale.ROOT) }
+                    ?.filter { it.isNotBlank() }
+                    ?.forEach { if (it !in item.categories) item.categories.add(it) }
+            }
+
             // FR-1: a full body in the feed means we never fetch this article.
             "content:encoded" -> item.contentHtml = text(parser)
 
@@ -262,6 +282,7 @@ object FeedParser {
         var summary: String? = null
         var contentHtml: String? = null
         var imageUrl: String? = null
+        val categories = mutableListOf<String>()
 
         fun build(): ParsedItem? {
             val url = UrlNormalizer.normalize(link) ?: return null
@@ -282,7 +303,8 @@ object FeedParser {
                 author = Html.stripTags(author),
                 excerpt = excerpt?.take(400),
                 fullContentHtml = fullBody,
-                imageUrl = imageUrl
+                imageUrl = imageUrl,
+                categories = categories.toList()
             )
         }
     }

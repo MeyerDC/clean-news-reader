@@ -61,6 +61,30 @@ const TABLE_SCHEMA: string[] = [
      caption TEXT
    )`,
   `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`,
+  // A topic is a rule, not a tag. Three clauses, OR'd together, each matching
+  // a different article-level signal — because no single signal covers every
+  // feed: some publish categories, some are single-subject, some offer nothing
+  // but their words.
+  `CREATE TABLE IF NOT EXISTS topics (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
+     sortOrder INTEGER NOT NULL DEFAULT 0,
+     /* Pipe-wrapped feed ids: "|3|7|" */
+     feedIds TEXT,
+     /* Pipe-wrapped lowercased categories: "|sport|soccer|" */
+     categories TEXT,
+     /* Comma-separated free text, matched against the search index. */
+     keywords TEXT
+   )`,
+  // A feed deleted locally while a sync account is linked. Without this the
+  // next pull re-adds it: the service still has it, and "absent locally" is
+  // indistinguishable from "not yet pulled". The row is dropped once the
+  // service has acknowledged the removal.
+  `CREATE TABLE IF NOT EXISTS deleted_feeds (
+     remoteId TEXT PRIMARY KEY,
+     url TEXT NOT NULL,
+     deletedAt INTEGER NOT NULL
+   )`,
 ];
 
 /**
@@ -85,6 +109,19 @@ const ADDED_COLUMNS: [string, string][] = [
   ['isArchived', `ALTER TABLE articles ADD COLUMN isArchived INTEGER NOT NULL DEFAULT 0`],
   ['archivedAt', `ALTER TABLE articles ADD COLUMN archivedAt INTEGER`],
   ['indexedAt', `ALTER TABLE articles ADD COLUMN indexedAt INTEGER`],
+  ['remoteHash', `ALTER TABLE articles ADD COLUMN remoteHash TEXT`],
+  ['categories', `ALTER TABLE articles ADD COLUMN categories TEXT`],
+  [
+    'readPushPending',
+    `ALTER TABLE articles ADD COLUMN readPushPending INTEGER NOT NULL DEFAULT 0`,
+  ],
+];
+
+/** Columns added to `feeds`, mirrored in android/.../data/Schema.kt. */
+const ADDED_FEED_COLUMNS: [string, string][] = [
+  ['lastItemAt', `ALTER TABLE feeds ADD COLUMN lastItemAt INTEGER`],
+  ['lastNewArticleAt', `ALTER TABLE feeds ADD COLUMN lastNewArticleAt INTEGER`],
+  ['remoteId', `ALTER TABLE feeds ADD COLUMN remoteId TEXT`],
 ];
 
 /**
@@ -175,16 +212,25 @@ export class DbService {
 
   /** Brings an existing database up to the current column set. */
   private async addMissingColumns(db: SQLiteDBConnection): Promise<void> {
-    const info = await db.query(`PRAGMA table_info(articles)`);
+    await this.addColumns(db, 'articles', ADDED_COLUMNS);
+    await this.addColumns(db, 'feeds', ADDED_FEED_COLUMNS);
+  }
+
+  private async addColumns(
+    db: SQLiteDBConnection,
+    table: string,
+    columns: [string, string][],
+  ): Promise<void> {
+    const info = await db.query(`PRAGMA table_info(${table})`);
     const rows = (info.values ?? []) as { name: string }[];
     const existing = new Set(rows.map((row) => row.name));
 
-    for (const [column, statement] of ADDED_COLUMNS) {
+    for (const [column, statement] of columns) {
       if (existing.has(column)) continue;
       try {
         await db.execute(statement);
       } catch (error) {
-        console.warn(`Could not add column ${column}:`, error);
+        console.warn(`Could not add ${table}.${column}:`, error);
       }
     }
   }

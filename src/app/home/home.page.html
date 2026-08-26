@@ -41,19 +41,47 @@
 
     <span class="cn-chip-divider"></span>
 
-    @for (source of sources(); track source) {
+    <!-- The switch only earns its space once there is a topic to switch to. -->
+    @if (topicList().length > 0) {
       <button
-        class="cn-chip"
-        [class.cn-chip-active]="isActive({ kind: 'source', sourceName: source })"
-        (click)="setFilter({ kind: 'source', sourceName: source })">
-        {{ source }}
+        class="cn-chip cn-chip-mode"
+        [class.cn-chip-active]="chipMode() === 'sources'"
+        (click)="setChipMode('sources')">
+        Sources
       </button>
+      <button
+        class="cn-chip cn-chip-mode"
+        [class.cn-chip-active]="chipMode() === 'topics'"
+        (click)="setChipMode('topics')">
+        Topics
+      </button>
+      <span class="cn-chip-divider"></span>
+    }
+
+    @if (chipMode() === 'topics') {
+      @for (topic of topicList(); track topic.id) {
+        <button
+          class="cn-chip"
+          [class.cn-chip-active]="isActive({ kind: 'topic', topicId: topic.id })"
+          (click)="setFilter({ kind: 'topic', topicId: topic.id })">
+          {{ topic.name }}
+        </button>
+      }
+    } @else {
+      @for (source of sources(); track source) {
+        <button
+          class="cn-chip"
+          [class.cn-chip-active]="isActive({ kind: 'source', sourceName: source })"
+          (click)="setFilter({ kind: 'source', sourceName: source })">
+          {{ source }}
+        </button>
+      }
     }
   </div>
   }
 </ion-header>
 
-<ion-content>
+<ion-content [class]="'cn-density-' + density()">
   <ion-refresher slot="fixed" (ionRefresh)="refresh($any($event))">
     <ion-refresher-content pullingText="Pull to refresh" refreshingSpinner="dots" />
   </ion-refresher>
@@ -77,15 +105,10 @@
         @for (hit of hits(); track hit.article.id) {
           <ion-item button detail="false" class="cn-row" (click)="open(hit.article)">
             <div class="cn-row-body">
-              <h2 class="cn-row-title">{{ hit.article.title }}</h2>
-              <p class="cn-row-meta">
-                {{ hitMeta(hit) }}
-                @if (hit.article.isArchived) {
-                  <span class="cn-tag cn-tag-archived">
-                    <ion-icon name="archive-outline" /> Archived
-                  </span>
-                }
-              </p>
+              @if (split(hit.article.title).kicker) {
+                <p class="cn-kicker">{{ split(hit.article.title).kicker }}</p>
+              }
+              <h2 class="cn-row-title">{{ split(hit.article.title).headline }}</h2>
               @if (hit.field === 'title') {
                 <!-- The headline above already shows the match; repeating it as
                      a snippet would just say the same thing twice. -->
@@ -97,6 +120,14 @@
                      the terms, built by SQLite from text we indexed ourselves. -->
                 <p class="cn-row-excerpt cn-snippet" [innerHTML]="hit.snippet"></p>
               }
+              <p class="cn-row-meta">
+                {{ hitMeta(hit) }}
+                @if (hit.article.isArchived) {
+                  <span class="cn-tag cn-tag-archived">
+                    <ion-icon name="archive-outline" /> Archived
+                  </span>
+                }
+              </p>
             </div>
           </ion-item>
         }
@@ -113,6 +144,7 @@
       @switch (filter().kind) {
         @case ('unread') { <p>Nothing unread.</p> }
         @case ('saved') { <p>Nothing saved yet. Share a link here from any app.</p> }
+        @case ('topic') { <p>Nothing matches this topic yet.</p> }
         @default { <p>No articles yet. Pull down to refresh.</p> }
       }
       <span class="cn-empty-meta">{{ lastRefreshLabel() }}</span>
@@ -121,6 +153,14 @@
     <ion-list lines="none">
       @for (article of items(); track article.id) {
         <ion-item-sliding #sliding>
+          <!-- FR-4 offline: fetch it now rather than when it is opened. The
+               end side is already dismiss, so the two gestures stay apart. -->
+          <ion-item-options side="start">
+            <ion-item-option (click)="download(article, sliding)">
+              <ion-icon slot="icon-only" name="download-outline" />
+            </ion-item-option>
+          </ion-item-options>
+
           <ion-item
             button
             detail="false"
@@ -128,15 +168,37 @@
             [class.cn-row-read]="article.isRead"
             (click)="open(article)">
             <div class="cn-row-body">
-              <h2 class="cn-row-title">{{ article.title }}</h2>
+              @if (split(article.title).kicker) {
+                <p class="cn-kicker">{{ split(article.title).kicker }}</p>
+              }
+              <h2 class="cn-row-title">{{ split(article.title).headline }}</h2>
+              @if (article.excerpt) {
+                <p class="cn-row-excerpt">{{ article.excerpt }}</p>
+              }
+              <!-- Attribution trails the content rather than interrupting it:
+                   headline then summary reads as one block, and the source is
+                   what you check second, not first. -->
               <p class="cn-row-meta">
                 {{ meta(article) }}
-                @if (article.isSaved && !article.feedId) {
+                @if (downloading().has(article.id)) {
+                  <span class="cn-downloading">Downloading…</span>
+                } @else if (article.isSaved && article.bodyHtml) {
+                  <!-- Kept and readable with no connection. -->
+                  <ion-icon
+                    name="download-outline"
+                    class="cn-offline-mark"
+                    aria-label="Available offline" />
+                } @else if (article.isSaved && !article.feedId) {
                   <span class="cn-tag">Saved</span>
                 }
               </p>
-              @if (article.excerpt) {
-                <p class="cn-row-excerpt">{{ article.excerpt }}</p>
+
+              <!-- Real progress, not a spinner: the text is one request we
+                   cannot see inside, the images are countable. -->
+              @if (downloading().has(article.id)) {
+                <div class="cn-progress" role="progressbar">
+                  <span [style.width.%]="(downloading().get(article.id) ?? 0) * 100"></span>
+                </div>
               }
             </div>
           </ion-item>

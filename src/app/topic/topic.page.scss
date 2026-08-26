@@ -1,0 +1,65 @@
+.cn-topic {
+  --background: var(--cn-bg);
+}
+
+ion-list {
+  background: transparent;
+  margin-bottom: 0.4rem;
+}
+
+ion-list-header ion-label {
+  font-family: var(--cn-sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--cn-text-faint);
+}
+
+ion-item {
+  --background: transparent;
+  --padding-start: 1.1rem;
+  --min-height: 2.7rem;
+}
+
+.cn-note {
+  display: block;
+  padding: 0.15rem 1.15rem 0.3rem;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--cn-text-faint);
+}
+
+.cn-count {
+  color: var(--cn-text-faint);
+  font-size: 0.78rem;
+  margin-left: 0.35rem;
+}
+
+/* Sticks to the bottom so the rule's effect stays visible while editing it. */
+.cn-preview {
+  position: sticky;
+  bottom: 0;
+  margin-top: 1rem;
+  padding: 0.85rem 1.15rem 1.2rem;
+  background: var(--cn-surface-sunken);
+  border-top: 1px solid var(--cn-border);
+}
+
+.cn-preview-count {
+  font-family: var(--cn-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--cn-text);
+  margin: 0 0 0.4rem;
+}
+
+.cn-preview-item {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--cn-text-dim);
+  margin: 0 0 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

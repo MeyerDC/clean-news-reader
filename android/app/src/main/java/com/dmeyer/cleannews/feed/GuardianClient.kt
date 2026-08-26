@@ -75,7 +75,10 @@ object GuardianClient {
                     // Attribution travels with the body so it is displayed
                     // wherever the article is rendered.
                     fullContentHtml = body?.let { it + ATTRIBUTION_HTML },
-                    imageUrl = fields?.optString("thumbnail")?.takeIf { it.isNotBlank() }
+                    imageUrl = fields?.optString("thumbnail")?.takeIf { it.isNotBlank() },
+                    categories = listOfNotNull(
+                        result.optString("sectionName").takeIf { it.isNotBlank() }?.lowercase()
+                    )
                 )
             )
         }

@@ -1,0 +1,109 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/settings" text="" />
+    </ion-buttons>
+    <ion-title>{{ isNew() ? 'New topic' : name() }}</ion-title>
+    <ion-buttons slot="end">
+      @if (!isNew()) {
+        <ion-button color="medium" (click)="remove()" aria-label="Delete topic">
+          <ion-icon slot="icon-only" name="trash-outline" />
+        </ion-button>
+      }
+      <ion-button [strong]="true" (click)="save()">Save</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="cn-topic">
+  <ion-list lines="none">
+    <ion-item>
+      <ion-input
+        label="Name"
+        labelPlacement="stacked"
+        placeholder="Sport"
+        [value]="name()"
+        (ionInput)="name.set($any($event).detail.value ?? ''); preview()" />
+    </ion-item>
+  </ion-list>
+
+  <!-- Whole feeds. Correct for single-subject feeds: MyBroadband only writes
+       about tech, so every article it publishes belongs to Tech. -->
+  <ion-list lines="none">
+    <ion-list-header><ion-label>Whole feeds</ion-label></ion-list-header>
+    @for (feed of feeds(); track feed.id) {
+      <ion-item>
+        <ion-checkbox
+          justify="start"
+          labelPlacement="end"
+          [checked]="hasFeed(feed.id)"
+          (ionChange)="toggleFeed(feed.id, $any($event).detail.checked)">
+          {{ feed.sourceName }}
+        </ion-checkbox>
+      </ion-item>
+    }
+    <ion-note class="cn-note">
+      Everything from these feeds joins the topic. Use it for feeds that only
+      write about one thing, not for general news.
+    </ion-note>
+  </ion-list>
+
+  <!-- Per-article categories: the signal that catches a rugby piece in an
+       otherwise general-interest feed. -->
+  <ion-list lines="none">
+    <ion-list-header><ion-label>Categories</ion-label></ion-list-header>
+    @if (knownCategories().length === 0) {
+      <ion-note class="cn-note">
+        None seen yet. Categories appear here once your feeds have been polled —
+        and some publishers don't send any at all.
+      </ion-note>
+    } @else {
+      @for (category of visibleCategories(); track category.name) {
+        <ion-item>
+          <ion-checkbox
+            justify="start"
+            labelPlacement="end"
+            [checked]="hasCategory(category.name)"
+            (ionChange)="toggleCategory(category.name, $any($event).detail.checked)">
+            {{ category.name }} <span class="cn-count">{{ category.articles }}</span>
+          </ion-checkbox>
+        </ion-item>
+      }
+      @if (hiddenCategoryCount() > 0) {
+        <ion-item button detail="false" (click)="showAllCategories.set(true)">
+          <ion-label color="medium">Show {{ hiddenCategoryCount() }} more</ion-label>
+        </ion-item>
+      }
+    }
+  </ion-list>
+
+  <ion-list lines="none">
+    <ion-list-header><ion-label>Keywords</ion-label></ion-list-header>
+    <ion-item>
+      <ion-input
+        labelPlacement="stacked"
+        placeholder="rugby, Springbok, Proteas"
+        [value]="keywordText()"
+        (ionInput)="keywordText.set($any($event).detail.value ?? ''); preview()" />
+    </ion-item>
+    <ion-note class="cn-note">
+      Searched across headlines and text. The last resort — it reaches feeds
+      that publish no categories, but it's the clause most likely to catch
+      something you didn't mean.
+    </ion-note>
+  </ion-list>
+
+  <!-- The preview is what makes a fuzzy rule tunable on a phone. -->
+  <div class="cn-preview">
+    @if (matchCount() === null) {
+      <p class="cn-preview-count">Add a feed, a category or a keyword</p>
+    } @else {
+      <p class="cn-preview-count">
+        Matches {{ matchCount() }} article{{ matchCount() === 1 ? '' : 's' }}
+      </p>
+      @for (title of samples(); track title) {
+        <p class="cn-preview-item">{{ title }}</p>
+      }
+    }
+  </div>
+</ion-content>

@@ -7,15 +7,33 @@ import { ExtractionService } from './extraction.service';
 import { ImageCacheService } from './image-cache.service';
 import { CleanNews } from './clean-news.plugin';
 import { SearchService } from './search.service';
+import { TopicService } from './topic.service';
 import { hostLabel, normalizeUrl } from './url';
 
 /** Shape stored in SQLite, before booleans are widened. */
-type ArticleRow = Omit<Article, 'isSaved' | 'isRead' | 'isDismissed' | 'isArchived'> & {
+type ArticleRow = Omit<
+  Article,
+  'isSaved' | 'isRead' | 'isDismissed' | 'isArchived' | 'readPushPending'
+> & {
   isSaved: number;
   isRead: number;
   isDismissed: number;
   isArchived: number;
+  readPushPending: number;
 };
+
+/**
+ * The result of an explicit download. Images are reported separately because
+ * "Load images on mobile data" is off for some people, and a download that
+ * quietly skipped every picture while saying "done" would be a lie.
+ */
+export type DownloadOutcome =
+  | { state: 'ok'; images: 'cached' | 'deferred' }
+  | { state: 'failed'; reason: 'paywall' | 'other' | 'video'; detail: string }
+  | { state: 'offline' };
+
+/** How much of the bar the article's text is worth, before its images. */
+const TEXT_SHARE = 0.25;
 
 export type ExtractionOutcome =
   | { state: 'ok' }
@@ -36,6 +54,7 @@ export class ArticleService {
   private readonly extraction = inject(ExtractionService);
   private readonly images = inject(ImageCacheService);
   private readonly search = inject(SearchService);
+  private readonly topics = inject(TopicService);
 
   // ---- reading ----------------------------------------------------------
 
@@ -43,29 +62,40 @@ export class ArticleService {
   async list(filter: ArticleFilter, limit = 200): Promise<Article[]> {
     // Archived articles are searchable but not browsable — they are a text
     // record, not a readable cached page.
-    const where: string[] = ['isDismissed = 0', 'isArchived = 0'];
+    // Aliased as `a` because a topic clause is built against that alias.
+    const where: string[] = ['a.isDismissed = 0', 'a.isArchived = 0'];
     const params: unknown[] = [];
 
     switch (filter.kind) {
       case 'unread':
-        where.push('isRead = 0');
+        where.push('a.isRead = 0');
         break;
       case 'saved':
-        where.push('isSaved = 1');
+        where.push('a.isSaved = 1');
         break;
       case 'source':
-        where.push('sourceName = ?');
+        where.push('a.sourceName = ?');
         params.push(filter.sourceName);
         break;
+      case 'topic': {
+        const topic = await this.topics.get(filter.topicId);
+        const clause = topic ? this.topics.buildClause(topic) : null;
+        // A topic with no clauses matches nothing rather than everything —
+        // silently showing the whole list would look like the rule worked.
+        if (!clause) return [];
+        where.push(clause.sql);
+        params.push(...clause.params);
+        break;
+      }
       case 'all':
         break;
     }
 
     params.push(limit);
     const rows = await this.db.query<ArticleRow>(
-      `SELECT * FROM articles
+      `SELECT a.* FROM articles a
        WHERE ${where.join(' AND ')}
-       ORDER BY COALESCE(publishedAt, fetchedAt, 0) DESC
+       ORDER BY COALESCE(a.publishedAt, a.fetchedAt, 0) DESC
        LIMIT ?`,
       params,
     );
@@ -302,12 +332,103 @@ export class ArticleService {
     });
   }
 
+  /**
+   * Fetches an article ahead of being read, so it is there on a plane or in a
+   * tunnel. Extraction and image caching already exist — this is the same work
+   * the reader does on open, done early and deliberately.
+   *
+   * A download is kept: it sets isSaved, so retention's 7-day unread sweep and
+   * "Clear cache" both leave it alone. Downloading something for Sunday on a
+   * Friday and finding it gone would make the feature untrustworthy.
+   */
+  async download(
+    articleId: number,
+    onProgress?: (fraction: number) => void,
+  ): Promise<DownloadOutcome> {
+    onProgress?.(0);
+
+    // Asking for a download is asking us to try, so a stored failure is
+    // retried rather than replayed. A paywall may have lifted, or the page may
+    // simply have been broken the day it was first opened.
+    const before = await this.get(articleId);
+    const retry = !!before?.extractionState.startsWith('failed');
+
+    const extracted = await this.ensureExtracted(articleId, retry);
+    if (extracted.state !== 'ok') return extracted;
+
+    const article = await this.get(articleId);
+    const bodyHtml = article?.bodyHtml;
+    if (!article || !bodyHtml) {
+      return { state: 'failed', reason: 'other', detail: GENERIC_DETAIL };
+    }
+
+    // Marked kept before the images, so an interrupted download still leaves
+    // a readable article behind rather than one the next sweep deletes.
+    await this.db.run('UPDATE articles SET isSaved = 1 WHERE id = ?', [articleId]);
+
+    // The text is the article; the pictures are the long tail. Weighting the
+    // bar this way means it moves early — fetching the page is one request
+    // whose progress we cannot see, while the images are countable.
+    onProgress?.(TEXT_SHARE);
+
+    const allowed = await this.images.downloadsAllowed();
+    if (allowed) {
+      await this.images
+        .cacheAll(
+          articleId,
+          await this.bodyImages(article, bodyHtml),
+          undefined,
+          (done, total) =>
+            onProgress?.(total ? TEXT_SHARE + (1 - TEXT_SHARE) * (done / total) : 1),
+        )
+        .catch(() => undefined);
+    }
+
+    onProgress?.(1);
+
+    this.revision.update((n) => n + 1);
+    return { state: 'ok', images: allowed ? 'cached' : 'deferred' };
+  }
+
+  /**
+   * The images the reader will ask for. cleanBody already reports them, so
+   * this runs the same preparation rather than a second parse that could drift
+   * from it. The lead image's duplicate copy is skipped because the reader
+   * drops that figure instead of rendering the picture twice.
+   */
+  private async bodyImages(
+    article: Article,
+    bodyHtml: string,
+  ): Promise<{ url: string; caption: string | null }[]> {
+    const prepared = this.extraction.cleanBody(bodyHtml, article.url, article.author);
+
+    const leadRemoteUrl = article.leadImagePath
+      ? await this.leadImageRemoteUrl(article.id)
+      : null;
+
+    let leadDuplicateDropped = false;
+    return prepared.images.filter((image) => {
+      if (!leadDuplicateDropped && image.url === leadRemoteUrl) {
+        leadDuplicateDropped = true;
+        return false;
+      }
+      return true;
+    });
+  }
+
   // ---- state changes ----------------------------------------------------
 
   /** FR-9: read after the reader has been open for five seconds. */
   async markRead(articleId: number): Promise<void> {
+    // readPushPending is set only where the story has a remote identity, so a
+    // local-only article never queues work that can never be delivered. The
+    // flag also protects the local value from being overwritten by the next
+    // pull before it has been acknowledged.
     const changed = await this.db.run(
-      'UPDATE articles SET isRead = 1 WHERE id = ? AND isRead = 0',
+      `UPDATE articles
+       SET isRead = 1,
+           readPushPending = CASE WHEN remoteHash IS NOT NULL THEN 1 ELSE 0 END
+       WHERE id = ? AND isRead = 0`,
       [articleId],
     );
     if (changed > 0) {
@@ -370,5 +491,6 @@ function hydrate(row: ArticleRow): Article {
     isRead: toBool(row.isRead),
     isDismissed: toBool(row.isDismissed),
     isArchived: toBool(row.isArchived),
+    readPushPending: toBool(row.readPushPending),
   };
 }

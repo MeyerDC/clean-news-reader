@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 
 import { CleanNews } from './clean-news.plugin';
 import { SearchService } from './search.service';
+import { SyncService } from './sync/sync.service';
 
 /**
  * Watches the native polling job so the UI can react to it.
@@ -13,6 +14,7 @@ import { SearchService } from './search.service';
 @Injectable({ providedIn: 'root' })
 export class PollService {
   private readonly search = inject(SearchService);
+  private readonly sync = inject(SyncService);
 
   /** Increments on every completed poll run. */
   readonly completed = signal(0);
@@ -29,10 +31,25 @@ export class PollService {
       // New articles arrived from the native job, which cannot touch the
       // search index itself.
       void this.search.catchUp().catch(() => undefined);
+      // A linked account reconciles on the same cadence rather than running a
+      // scheduler of its own.
+      void this.syncThenIndex();
       const pending = this.waiters;
       this.waiters = [];
       pending.forEach((resolve) => resolve());
     });
+  }
+
+  /** Sync writes articles, so the index has to catch up afterwards too. */
+  private async syncThenIndex(): Promise<void> {
+    if (!this.sync.linked) return;
+    try {
+      await this.sync.sync();
+      await this.search.catchUp();
+      this.completed.update((n) => n + 1);
+    } catch {
+      // A failed sync must not disturb the local poll that just succeeded.
+    }
   }
 
   /** Triggers a poll and resolves when it finishes, or when it takes too long. */

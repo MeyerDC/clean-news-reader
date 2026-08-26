@@ -44,6 +44,12 @@
           <button class="cn-btn cn-btn-primary" (click)="tryAgain()">Try again</button>
           <button class="cn-btn" (click)="openOriginal()">Open original page</button>
         </div>
+        <!-- The one moment the download gesture explains itself: someone is
+             standing in front of an article they cannot read. -->
+        <p class="cn-state-tip">
+          Next time, swipe an article right in the list to download it before
+          you lose signal.
+        </p>
       </div>
     }
 
@@ -75,7 +81,7 @@
             <div class="cn-follow-text">
               <strong>Also follow {{ offer[0].title }}?</strong>
               <span>
-                {{ offer[0].itemCount }} recent headlines
+                {{ describe(offer[0]) }}
                 @if (offer.length > 1) {
                   · <button class="cn-link" (click)="chooseFeed()">{{ offer.length }} feeds available</button>
                 }

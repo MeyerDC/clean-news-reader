@@ -11,6 +11,12 @@ export interface Feed {
   lastModified: string | null;
   consecutiveFailures: number;
   lastError: string | null;
+  /** Newest item seen on the last poll — null for feeds carrying no dates. */
+  lastItemAt: number | null;
+  /** When this feed last actually produced a new article. Observed, not guessed. */
+  lastNewArticleAt: number | null;
+  /** The sync service's identifier for this feed, when one is linked. */
+  remoteId: string | null;
 }
 
 export type ExtractionState =
@@ -48,6 +54,36 @@ export interface Article {
   extractedAt: number | null;
   /** When the row was last written into the search index. */
   indexedAt: number | null;
+  /** The sync service's identifier, when the story came from one. */
+  remoteHash: string | null;
+  /** A local read not yet acknowledged by the sync service. */
+  readPushPending: boolean;
+  /** Pipe-wrapped lowercased feed categories: "|sport|maverick news|". */
+  categories: string | null;
+}
+
+/**
+ * A topic is a rule evaluated against articles, not a label attached to feeds.
+ *
+ * Feed-level topics do not work: Daily Maverick sits in a general-interest feed
+ * and occasionally writes about rugby, so inheriting the feed's topic would
+ * file that piece under the wrong heading. Equally, keywords alone cannot
+ * express "Tech", because the four feeds that are most about tech publish no
+ * categories and their vocabulary is too generic to match on.
+ *
+ * So the clauses are OR'd: whole single-subject feeds, per-article categories,
+ * and finally keywords for the feeds that offer nothing else.
+ */
+export interface Topic {
+  id: number;
+  name: string;
+  sortOrder: number;
+  /** Every article from these feeds matches — for single-subject feeds. */
+  feedIds: number[];
+  /** Matched against articles.categories. */
+  categories: string[];
+  /** Matched against the search index. Fuzziest clause, used last. */
+  keywords: string[];
 }
 
 /** Mirrors the `cached_images` table (spec section 6). */
@@ -66,6 +102,7 @@ export type ArticleFilter =
   | { kind: 'all' }
   | { kind: 'unread' }
   | { kind: 'saved' }
-  | { kind: 'source'; sourceName: string };
+  | { kind: 'source'; sourceName: string }
+  | { kind: 'topic'; topicId: number };
 
 export const FEED_FAILURE_THRESHOLD = 5;

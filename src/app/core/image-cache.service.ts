@@ -76,19 +76,28 @@ export class ImageCacheService {
     articleId: number,
     images: { url: string; caption: string | null }[],
     onReady?: (image: ReadyImage) => void,
+    /**
+     * Fires after every attempt, not every success. A failed image is still
+     * one fewer to wait for, and a progress bar that stalled at 80% because
+     * one picture 404'd would look like the download had hung.
+     */
+    onProgress?: (done: number, total: number) => void,
   ): Promise<void> {
     if (!images.length) return;
     if (!(await this.downloadsAllowed())) return;
 
     const existing = await this.cachedFor(articleId);
     const queue = images.filter((image) => !existing.has(image.url));
+    onProgress?.(0, queue.length);
 
     let cursor = 0;
+    let done = 0;
     const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
       while (cursor < queue.length) {
         const item = queue[cursor++];
         const ready = await this.cacheOne(articleId, item.url, item.caption);
         if (ready && onReady) onReady(ready);
+        onProgress?.(++done, queue.length);
       }
     });
 

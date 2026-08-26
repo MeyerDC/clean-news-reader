@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ counterpart to allowBackup="false".
+
+     cloud-backup covers Google Drive; device-transfer covers moving to a new
+     phone. Both are excluded: the reading history is meant to stay on the
+     device it was read on, and OPML export is the deliberate way to move a
+     feed list between devices. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+    </device-transfer>
+</data-extraction-rules>

@@ -8,6 +8,39 @@
 </ion-header>
 
 <ion-content class="cn-settings">
+  <!-- Topics are rules over articles rather than part of the feed list, and
+       they go first: a synced account can bring thirty feeds with it, which
+       would otherwise bury everything below them. -->
+  <ion-list lines="none">
+    <ion-list-header>
+      <ion-label>Topics</ion-label>
+      <ion-button fill="clear" size="small" (click)="newTopic()">
+        <ion-icon slot="start" name="add-outline" />
+        New
+      </ion-button>
+    </ion-list-header>
+
+    @for (topic of topics(); track topic.id) {
+      <ion-item button detail="true" (click)="editTopic(topic)">
+        <ion-label class="ion-text-wrap">
+          <h3>{{ topic.name }}</h3>
+          <p>{{ describeTopic(topic) }}</p>
+        </ion-label>
+      </ion-item>
+    } @empty {
+      <ion-item>
+        <ion-label class="ion-text-wrap">
+          <p>No topics yet.</p>
+        </ion-label>
+      </ion-item>
+    }
+    <ion-note class="cn-note">
+      A topic gathers articles by feed, by the categories publishers send, or by
+      keyword — so a single rugby piece in a general feed still lands under
+      Sport. They appear as chips on the home screen.
+    </ion-note>
+  </ion-list>
+
   <!-- FR-11: feeds — add, remove, reorder, enable/disable, per-feed status. -->
   <ion-list lines="none">
     <ion-list-header>
@@ -22,7 +55,7 @@
 
     <ion-reorder-group [disabled]="false" (ionItemReorder)="reorderFeeds($any($event))">
       @for (feed of feeds(); track feed.id) {
-        <ion-item class="cn-feed">
+        <ion-item class="cn-feed" button detail="false" (click)="editFeed(feed)">
           <ion-reorder slot="start" />
 
           <ion-label>
@@ -32,7 +65,10 @@
                 <ion-icon name="warning-outline" class="cn-feed-warning" />
               }
             </h3>
-            <p class="cn-feed-status" [class.cn-feed-status-bad]="isFailing(feed)">
+            <p
+              class="cn-feed-status"
+              [class.cn-feed-status-bad]="isFailing(feed)"
+              [class.cn-feed-status-quiet]="!isFailing(feed) && isQuiet(feed)">
               {{ feedStatus(feed) }}
             </p>
           </ion-label>
@@ -40,6 +76,7 @@
           <ion-toggle
             slot="end"
             [checked]="feed.enabled"
+            (click)="$event.stopPropagation()"
             (ionChange)="toggleFeed(feed, $any($event).detail.checked)" />
 
           <ion-button
@@ -47,7 +84,7 @@
             fill="clear"
             size="small"
             color="medium"
-            (click)="removeFeed(feed)">
+            (click)="$event.stopPropagation(); removeFeed(feed)">
             <ion-icon slot="icon-only" name="trash-outline" />
           </ion-button>
         </ion-item>
@@ -59,6 +96,37 @@
         </ion-item>
       }
     </ion-reorder-group>
+  </ion-list>
+
+  <!-- Optional sync. Local-first stays the default: with nothing linked the
+       app polls publishers itself, exactly as before. -->
+  <ion-list lines="none">
+    <ion-list-header><ion-label>Sync</ion-label></ion-list-header>
+    <ion-item>
+      <ion-label class="ion-text-wrap">
+        <h3>NewsBlur</h3>
+        <p>{{ syncStatus }}</p>
+      </ion-label>
+      @if (sync.linked) {
+        <ion-button slot="end" fill="clear" size="small" [disabled]="sync.syncing()" (click)="syncNow()">
+          <ion-icon slot="icon-only" name="refresh-outline" />
+        </ion-button>
+        <ion-button slot="end" fill="outline" size="small" color="medium" (click)="unlinkAccount()">
+          Unlink
+        </ion-button>
+      } @else {
+        <ion-button slot="end" fill="outline" size="small" [disabled]="finding()" (click)="linkAccount()">
+          Link
+        </ion-button>
+      }
+    </ion-item>
+    <ion-note class="cn-note">
+      Your feed list and what you've read follow you between devices. Feeds you
+      add here can be pushed up to NewsBlur — you're asked first — and removing
+      one here unsubscribes the account. Articles are still fetched and rendered
+      on this phone; NewsBlur only says which stories exist and which you've
+      seen. The password signs you in once and is not stored.
+    </ion-note>
   </ion-list>
 
   <!-- FR-1: poll interval, 15 minutes to 6 hours. -->
@@ -83,6 +151,30 @@
   <!-- FR-6: theme and reader font size. -->
   <ion-list lines="none">
     <ion-list-header><ion-label>Reading</ion-label></ion-list-header>
+
+    <!-- A three-way visual choice, so all three stay on screen: picking one
+         from a popover means opening it again to compare. -->
+    <ion-item lines="none">
+      <ion-label>List density</ion-label>
+    </ion-item>
+    <ion-item lines="none">
+      <ion-segment
+        [value]="settings.settings().listDensity"
+        (ionChange)="setDensity($any($event).detail.value)">
+        <ion-segment-button value="small">
+          <ion-label>Small</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="medium">
+          <ion-label>Medium</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="large">
+          <ion-label>Large</ion-label>
+        </ion-segment-button>
+      </ion-segment>
+    </ion-item>
+    <ion-note class="cn-note">
+      How much room each article gets in the list. Small shows headlines only.
+    </ion-note>
 
     <ion-item>
       <ion-select

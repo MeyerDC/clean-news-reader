@@ -50,6 +50,15 @@
   color: var(--cn-bg);
 }
 
+/* The mode switch is a control, not a filter — dashed so it reads apart from
+   the chips it toggles between. */
+.cn-chip-mode {
+  border-style: dashed;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
 .cn-chip-divider {
   flex: 0 0 auto;
   width: 1px;
@@ -66,9 +75,46 @@
 }
 
 .cn-row-body {
+  position: relative;
   width: 100%;
-  padding: 0.85rem 1rem;
+  padding: 0.95rem 1rem 0.85rem;
   border-bottom: 1px solid var(--cn-border);
+}
+
+/* Sits on the row's own divider, so it adds no height and nothing shifts when
+   it appears or goes. */
+.cn-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 3px;
+  background: var(--cn-accent-soft);
+
+  span {
+    display: block;
+    height: 100%;
+    background: var(--cn-accent);
+    transition: width 180ms ease-out;
+  }
+}
+
+.cn-downloading {
+  color: var(--cn-accent);
+}
+
+/*
+ * The section a publisher shouts in capitals inside the headline. Re-set small
+ * and letter-spaced: the information is worth keeping, the volume is not.
+ */
+.cn-kicker {
+  font-family: var(--cn-sans);
+  font-size: 0.61rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--cn-text-faint);
+  margin: 0 0 0.22rem;
 }
 
 .cn-row-title {
@@ -82,9 +128,10 @@
 }
 
 .cn-row-meta {
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   color: var(--cn-text-faint);
-  margin: 0;
+  /* Trails the content, so the space belongs above it. */
+  margin: 0.45rem 0 0;
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -92,13 +139,62 @@
 
 .cn-row-excerpt {
   font-size: 0.83rem;
-  line-height: 1.45;
-  color: var(--cn-text-dim);
-  margin: 0.35rem 0 0;
+  line-height: 1.5;
+  /* One secondary tone in the row, not two: the excerpt and the source line
+     are both supporting text, and giving them separate greys was most of what
+     made a row feel busy. */
+  color: var(--cn-text-faint);
+  margin: 0.3rem 0 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/*
+ * Density tiers. Medium is the baseline defined above; the other two adjust it
+ * rather than redefining a row from scratch, so a change to the row itself
+ * still reaches all three.
+ */
+.cn-density-small {
+  .cn-row-body {
+    padding: 0.62rem 1rem 0.58rem;
+  }
+
+  .cn-row-title {
+    font-size: 0.92rem;
+  }
+
+  /* Dropped, not shrunk: the compact tier is for fitting more headlines. */
+  .cn-row-excerpt {
+    display: none;
+  }
+
+  .cn-row-meta {
+    margin-top: 0.22rem;
+  }
+}
+
+.cn-density-large {
+  .cn-row-body {
+    padding: 1.05rem 1rem;
+  }
+
+  .cn-row-title {
+    font-size: 1.14rem;
+    line-height: 1.3;
+    margin-bottom: 0.36rem;
+  }
+
+  .cn-row-excerpt {
+    font-size: 0.9rem;
+    -webkit-line-clamp: 3;
+    margin-top: 0.42rem;
+  }
+
+  .cn-row-meta {
+    margin-top: 0.55rem;
+  }
 }
 
 /* Read articles recede rather than disappear. */
@@ -110,7 +206,15 @@
 
   .cn-row-excerpt {
     color: var(--cn-text-faint);
+    opacity: 0.72;
   }
+}
+
+/* Quiet by design: it marks a state, it does not announce one. */
+.cn-offline-mark {
+  font-size: 0.85rem;
+  color: var(--cn-text-faint);
+  opacity: 0.85;
 }
 
 .cn-tag {

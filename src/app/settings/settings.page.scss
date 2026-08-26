@@ -86,3 +86,9 @@ ion-item {
 .cn-settings-foot {
   height: 2.5rem;
 }
+
+/* A feed that polls fine but delivers nothing is not an error — it is a fact
+   about the feed. Amber rather than red. */
+.cn-feed-status-quiet {
+  color: var(--cn-accent) !important;
+}

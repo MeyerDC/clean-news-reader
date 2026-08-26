@@ -110,6 +110,14 @@
   margin-top: 0.4rem !important;
 }
 
+.cn-state-tip {
+  margin-top: 1.6rem;
+  max-width: 22rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--cn-text-faint);
+}
+
 .cn-state-actions {
   display: flex;
   flex-direction: column;

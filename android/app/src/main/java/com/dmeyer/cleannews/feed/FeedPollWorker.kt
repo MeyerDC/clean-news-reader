@@ -21,6 +21,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
+/** What one pass of storeItems observed. */
+private data class StoreResult(val inserted: Int, val newestItemAt: Long?)
+
 private data class FeedRow(
     val id: Long,
     val url: String,
@@ -68,6 +71,15 @@ class FeedPollWorker(context: Context, params: WorkerParameters) :
         return Result.success()
     }
 
+    /**
+     * Stored pipe-wrapped so a rule can match a whole category exactly:
+     * "|sport|maverick news|" matches LIKE '%|sport|%' without also matching
+     * a category called "sports betting".
+     */
+    private fun encodeCategories(categories: List<String>): String? =
+        if (categories.isEmpty()) null
+        else categories.joinToString("|", prefix = "|", postfix = "|")
+
     /** Returns how many new articles were stored across all feeds. */
     private fun pollAllFeeds(db: SQLiteDatabase): Int {
         var storedTotal = 0
@@ -81,9 +93,10 @@ class FeedPollWorker(context: Context, params: WorkerParameters) :
 
                 if (useGuardianApi) {
                     val items = GuardianClient.fetchLatest(guardianKey!!)
-                    val stored = storeItems(db, feed, items, cutoff)
-                    storedTotal += stored
-                    Log.i(TAG, "${feed.sourceName}: Guardian API gave ${items.size}, stored $stored")
+                    val result = storeItems(db, feed, items, cutoff)
+                    storedTotal += result.inserted
+                    recordHealth(db, feed, result)
+                    Log.i(TAG, "${feed.sourceName}: Guardian API gave ${items.size}, stored ${result.inserted}")
                     markFeedOk(db, feed.id, null, null)
                 } else {
                     val response = HttpFetch.get(feed.url, feed.etag, feed.lastModified)
@@ -104,11 +117,13 @@ class FeedPollWorker(context: Context, params: WorkerParameters) :
                     }
 
                     val parsed = FeedParser.parse(body)
-                    val stored = storeItems(db, feed, parsed.items, cutoff)
-                    storedTotal += stored
+                    val result = storeItems(db, feed, parsed.items, cutoff)
+                    storedTotal += result.inserted
+                    recordHealth(db, feed, result)
                     Log.i(
                         TAG,
-                        "${feed.sourceName}: parsed ${parsed.items.size} items, stored $stored new"
+                        "${feed.sourceName}: parsed ${parsed.items.size} items, " +
+                            "stored ${result.inserted} new"
                     )
                     if (!parsed.title.isNullOrBlank()) {
                         db.execSQL(
@@ -163,10 +178,13 @@ class FeedPollWorker(context: Context, params: WorkerParameters) :
         feed: FeedRow,
         items: List<ParsedItem>,
         cutoff: Long
-    ): Int {
+    ): StoreResult {
         val now = System.currentTimeMillis()
         var inserted = 0
         var tooOld = 0
+        // Tracked even for items we discard: an archive feed's newest item is
+        // exactly the number that explains why nothing arrived.
+        var newestItemAt: Long? = items.mapNotNull { it.publishedAt }.maxOrNull()
         db.beginTransaction()
         try {
             for (item in items) {
@@ -198,6 +216,15 @@ class FeedPollWorker(context: Context, params: WorkerParameters) :
                         "UPDATE articles SET feedId = ? WHERE id = ? AND feedId IS NULL",
                         arrayOf<Any?>(feed.id, existingId)
                     )
+                    // Categories can appear on a later poll, or on the copy that
+                    // came from a second feed carrying the same story.
+                    if (item.categories.isNotEmpty()) {
+                        db.execSQL(
+                            "UPDATE articles SET categories = ? " +
+                                "WHERE id = ? AND (categories IS NULL OR categories = '')",
+                            arrayOf<Any?>(encodeCategories(item.categories), existingId)
+                        )
+                    }
                     continue
                 }
 
@@ -209,6 +236,7 @@ class FeedPollWorker(context: Context, params: WorkerParameters) :
                     put("publishedAt", item.publishedAt ?: now)
                     put("sourceName", feed.sourceName)
                     put("excerpt", item.excerpt)
+                    put("categories", encodeCategories(item.categories))
                     put("isSaved", 0)
                     put("isRead", 0)
                     put("isDismissed", 0)
@@ -234,7 +262,18 @@ class FeedPollWorker(context: Context, params: WorkerParameters) :
             db.endTransaction()
         }
         if (tooOld > 0) Log.i(TAG, "${feed.sourceName}: discarded $tooOld items older than 7 days")
-        return inserted
+        return StoreResult(inserted = inserted, newestItemAt = newestItemAt)
+    }
+
+    /** Records what the poll observed, so settings can explain a quiet feed. */
+    private fun recordHealth(db: SQLiteDatabase, feed: FeedRow, result: StoreResult) {
+        val now = System.currentTimeMillis()
+        db.execSQL(
+            "UPDATE feeds SET lastItemAt = COALESCE(?, lastItemAt), " +
+                "lastNewArticleAt = CASE WHEN ? > 0 THEN ? ELSE lastNewArticleAt END " +
+                "WHERE id = ?",
+            arrayOf<Any?>(result.newestItemAt, result.inserted, now, feed.id)
+        )
     }
 
     private fun markFeedOk(db: SQLiteDatabase, feedId: Long, etag: String?, lastModified: String?) {
@@ -249,11 +288,20 @@ class FeedPollWorker(context: Context, params: WorkerParameters) :
      * FR-1: a feed that fails five polls in a row is flagged in settings with
      * its error, but we keep polling it — outages end.
      */
+    /**
+     * The Guardian API takes its key as a query parameter, so the key can ride
+     * along in any message that quotes a request URL. This error text is shown
+     * in settings and kept in the database, so it is scrubbed on the way in
+     * rather than trusting every exception not to quote its URL.
+     */
+    private fun redactSecrets(text: String): String =
+        text.replace(Regex("(?i)(api[-_]?key=)[^&\\s]+"), "$1[redacted]")
+
     private fun markFeedFailed(db: SQLiteDatabase, feed: FeedRow, error: String) {
         db.execSQL(
             "UPDATE feeds SET lastPolledAt = ?, consecutiveFailures = consecutiveFailures + 1, " +
                 "lastError = ? WHERE id = ?",
-            arrayOf<Any?>(System.currentTimeMillis(), error.take(500), feed.id)
+            arrayOf<Any?>(System.currentTimeMillis(), redactSecrets(error).take(500), feed.id)
         )
     }
 

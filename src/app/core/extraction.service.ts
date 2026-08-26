@@ -216,6 +216,27 @@ export class ExtractionService {
     try {
       // Readability mutates the document it is given, hence the fresh parse.
       article = new Readability(doc, { charThreshold: 250 }).parse();
+
+      // A listicle is built from dozens of small blocks, each carrying its own
+      // links, and Readability's link-density penalty throws all of them away
+      // — leaving the introduction and the author bio, which read like a
+      // complete short article rather than an obvious failure.
+      //
+      // Its own remedy is to retry with that cleaning relaxed, but only when
+      // the first result falls under charThreshold, which a plausible-looking
+      // stub does not. So the retry is made here instead, and only when the
+      // result is short enough to be suspect.
+      const firstLength = textLengthOf(article?.content ?? '');
+      if (firstLength < RETRY_UNDER_CHARS) {
+        const retry = new Readability(this.parse(html, url), {
+          charThreshold: RETRY_UNDER_CHARS,
+        }).parse();
+
+        // Taken only when it is substantially more, so an ordinary short
+        // article is never swapped for a slightly junkier parse of itself.
+        const retryLength = textLengthOf(retry?.content ?? '');
+        if (retry?.content && retryLength > firstLength * 1.5) article = retry;
+      }
     } catch (error) {
       return {
         ok: false,
@@ -373,21 +394,44 @@ export class ExtractionService {
       }
       matches.forEach((element) => {
         // A figure whose class happens to say "share" still holds the picture,
-        // so never drop a node that contains the only images we have.
-        if (element.querySelector('img') && element.textContent!.trim().length < 200) return;
+        // so never drop a node that contains the only images we have. Icons do
+        // not count: a share widget made of icon links is what this is for,
+        // and treating its buttons as pictures is what kept it on the page.
+        const hasPicture = Array.from(element.querySelectorAll('img')).some(
+          (img) => !looksLikeAsset(img.getAttribute('src')),
+        );
+        if (hasPicture && element.textContent!.trim().length < 200) return;
         element.remove();
       });
     }
 
     const images = this.collectImages(root, baseUrl);
     this.sanitize(root, baseUrl);
+
+    // Shape-based passes, and they are not a luxury: some publishers ship the
+    // whole page with no class names at all, so every selector above misses
+    // and what is left has to be recognised by what it looks like.
+    this.markSocialEmbeds(root);
+    this.dropTrailingRail(root);
+    this.dropLinkOnlyBlocks(root);
+    this.dropTrailingPromos(root);
+    this.dropOrphanLabels(root);
+
     this.dropEmptyNodes(root);
     this.dropLeadingByline(root, author);
+
+    // The passes above run after collectImages, so a rail thumbnail can be in
+    // the list while its <img> has since been removed from the page. Left
+    // alone it would be downloaded, cached and counted in the download's
+    // progress total for a picture nothing will ever show.
+    const surviving = new Set(
+      Array.from(root.querySelectorAll('img')).map((img) => img.getAttribute('src') ?? ''),
+    );
 
     return {
       html: root.innerHTML.trim(),
       text: (root.textContent ?? '').replace(/\s+/g, ' ').trim(),
-      images,
+      images: images.filter((image) => surviving.has(image.url)),
     };
   }
 
@@ -408,15 +452,32 @@ export class ExtractionService {
         img.getAttribute('src');
 
       const absolute = candidate ? resolveUrl(baseUrl, candidate.trim()) : null;
-      if (!absolute || absolute.startsWith('data:')) {
+      // http(s) only, stated explicitly rather than inherited. DOMPurify's URI
+      // allow-list already blocks file:, content: and javascript: before this
+      // runs, but these URLs are handed to a downloader that will fetch
+      // whatever it is given, so the constraint belongs where it is relied on.
+      if (!absolute || !/^https?:\/\//i.test(absolute)) {
         img.remove();
         return;
       }
 
       // Masthead and accreditation badges: a picture whose only job is to link
       // back to the site's front page is furniture, not part of the story.
-      if (isPublisherFurniture(img, baseUrl)) {
-        (img.closest('figure') ?? img).remove();
+      //
+      // Judged on the resolved URL: a lazy-loading publisher parks a
+      // placeholder in src, and placeholders are exactly the kind of path that
+      // looks like an asset — testing that would delete the real photograph.
+      if (isPublisherFurniture(img, baseUrl, absolute)) {
+        // Only take the figure when the figure is the furniture. A camera icon
+        // inside a <figcaption> sits in the same <figure> as the photograph it
+        // credits, and removing that took the photograph with it.
+        const figure = img.closest('figure');
+        const figureHasPhoto =
+          !!figure &&
+          Array.from(figure.querySelectorAll('img')).some(
+            (other) => other !== img && !looksLikeAsset(other.getAttribute('src')),
+          );
+        (figureHasPhoto ? img : (figure ?? img)).remove();
         return;
       }
 
@@ -494,8 +555,12 @@ export class ExtractionService {
   private dropLeadingByline(root: Element, author?: string | null): void {
     const bylinePatterns = [
       /^by\s+\S/i,
-      /\bpublished\b/i,
-      /\blast\s+updated\b/i,
+      // Anchored, all three: a leading block that *starts* "Published…" is a
+      // date line, while a sentence that merely contains "published on
+      // Tuesday" is the first line of the story.
+      /^published\b/i,
+      /^last\s+updated\b/i,
+      /^updated\b/i,
       /^\d+\s+(minutes?|hours?|days?)\s+ago$/i,
       /^(share|save)$/i,
       // Audio-player furniture: the "listen to this article" strip and the
@@ -524,9 +589,184 @@ export class ExtractionService {
       const isAuthorLine =
         !!author && text.replace(/^by\s+/i, '').toLowerCase() === author.trim().toLowerCase();
 
-      if (!isAuthorLine && !bylinePatterns.some((pattern) => pattern.test(text))) return;
+      // A <time> above the first paragraph is the publication date, which the
+      // reader already prints in its own byline. Structural, so it catches the
+      // publishers whose wording none of the patterns anticipated.
+      const isDateLine = !!block.querySelector('time') || block.matches('time');
+
+      if (!isAuthorLine && !isDateLine && !bylinePatterns.some((p) => p.test(text))) return;
 
       block.remove();
+    }
+  }
+
+  /**
+   * A social embed that did not load leaves its fallback text behind: the
+   * handle, the whole caption, a run of hashtags and the track credit. It is
+   * replaced rather than deleted, for the same reason a video is — the reader
+   * should be able to see that something was there.
+   */
+  private markSocialEmbeds(root: Element): void {
+    root.querySelectorAll('blockquote').forEach((quote) => {
+      const text = quote.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+      if (!text) return;
+
+      const tokens = text.split(' ');
+      const tagged = tokens.filter((token) => /^[@#]\w/.test(token)).length;
+      const isEmbed = text.includes('♬') || (tagged >= 3 && tagged / tokens.length > 0.2);
+      if (!isEmbed) return;
+
+      const marker = quote.ownerDocument.createElement('p');
+      marker.setAttribute('data-cn-video', '');
+      marker.textContent = 'Social post — view on the original page';
+      quote.replaceWith(marker);
+    });
+  }
+
+  /**
+   * Everything from a "More from…" heading to the end of its container.
+   *
+   * Readability keeps whatever the publisher put inside <article>, and some
+   * put the recommendation rail and the site footer in there. The heading is
+   * the boundary the page itself declares.
+   */
+  private dropTrailingRail(root: Element): void {
+    const headings = Array.from(root.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+
+    for (const heading of headings) {
+      const text = heading.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+      if (!RAIL_HEADING.test(text)) continue;
+
+      // "Related developments" is a subheading when the reporting carries on
+      // beneath it. Cutting there would take the rest of the story out of the
+      // reader *and* out of the search index, so the prose has the last word.
+      if (hasProseAfter(heading)) continue;
+
+      // Everything after it goes, at every level up to the root — not just
+      // the heading's own siblings. On the page this was written for, the rail
+      // sits in a <section> and the site footer follows *that*, so a cut that
+      // stopped at the container left the copyright line in the article.
+      dropEverythingAfter(heading, root);
+      return;
+    }
+  }
+
+  /**
+   * Blocks that are only links: share rows, "Follow us" lists, app-store
+   * strips. Judged by how much of the text sits inside anchors, because the
+   * publishers that need this pass give their markup nothing else to go on.
+   */
+  private dropLinkOnlyBlocks(root: Element): void {
+    const blocks = Array.from(root.querySelectorAll('p, ul, ol, div, section'));
+
+    // Reverse order so a container is judged after its children have gone.
+    for (const block of blocks.reverse()) {
+      if (!block.isConnected) continue;
+      // Any image still here survived the furniture pass, so it is a picture.
+      if (block.querySelector('img')) continue;
+
+      const text = block.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+      if (text.length > 200) continue;
+
+      // A list of destinations, judged item by item. The text ratio alone
+      // misses these: one unlinked entry among the links — a frequency, a
+      // channel number — drags the ratio below any sensible threshold while
+      // the list is still plainly a list of places to find the station.
+      if ((block.tagName === 'UL' || block.tagName === 'OL') && text) {
+        const items = Array.from(block.children).filter((li) => li.tagName === 'LI');
+        const linked = items.filter((li) => li.querySelector('a')).length;
+        // Half is enough. A list this short with half its bullets hyperlinked
+        // is a directory; reporting that happens to be listed runs longer than
+        // the 200-character cap above long before it links that heavily.
+        if (items.length >= 2 && linked / items.length >= 0.5) {
+          block.remove();
+          continue;
+        }
+      }
+
+      const links = Array.from(block.querySelectorAll('a'));
+
+      // Nothing but links and no words: a share row whose icons have already
+      // been dropped as furniture. The ratio test below cannot see this one,
+      // because there is no text to take a ratio of.
+      if (!text && links.length) {
+        block.remove();
+        continue;
+      }
+      if (!text) continue;
+      if (!links.length) continue;
+
+      const linked = links
+        .map((a) => a.textContent?.trim() ?? '')
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (linked.length / text.length < 0.8) continue;
+
+      // Two or more links in a block this small is a list of destinations. A
+      // single one is ambiguous — "Read the full judgment" is a real aside —
+      // so it goes only when the link itself says what it is.
+      if (links.length < 2 && !FURNITURE_LINK.test(linked)) continue;
+
+      block.remove();
+    }
+  }
+
+  /**
+   * The sign-up pitch publishers append to the story — "Never miss a major
+   * story", "delivered straight to your inbox". It carries no links once the
+   * form has been stripped, sits in no labelled container, and is often set in
+   * bold italics, so it reads as part of the article rather than an
+   * advertisement for the publisher.
+   *
+   * Only in the tail: an article *about* newsletters may use the same words,
+   * and there the wording is followed by more reporting.
+   */
+  private dropTrailingPromos(root: Element): void {
+    const blocks = Array.from(root.querySelectorAll('p, div, section, article'));
+
+    for (const block of blocks.reverse()) {
+      if (!block.isConnected) continue;
+      if (block.querySelector('img')) continue;
+
+      const text = block.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+      if (!text || text.length > 220) continue;
+      if (!PROMO_TEXT.test(text)) continue;
+      if (hasProseAfter(block)) continue;
+
+      block.remove();
+    }
+  }
+
+  /**
+   * The label left behind once its links are gone — "Share this:", "Listen to
+   * us:" — and trailing picture credits. Both are only recognisable by being
+   * short, terminal and going nowhere.
+   */
+  private dropOrphanLabels(root: Element): void {
+    // Repeated because removing one label can strand the one before it.
+    for (let pass = 0; pass < 4; pass++) {
+      const candidates = Array.from(root.querySelectorAll('p, div'))
+        .filter((element) => !element.querySelector('img, a'));
+
+      let removed = false;
+      for (const element of candidates.reverse()) {
+        if (!element.isConnected) continue;
+        const text = element.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+        if (!text) continue;
+
+        const isCredit = text.length <= 80 && CREDIT_LINE.test(text);
+        // "Last" means nothing follows that a reader would see: an emptied
+        // wrapper left by an earlier pass does not count as company.
+        const isStrandedLabel =
+          text.length <= 60 && text.endsWith(':') && !nextVisibleSibling(element);
+
+        if (!isCredit && !isStrandedLabel) continue;
+        element.remove();
+        removed = true;
+      }
+
+      if (!removed) return;
     }
   }
 
@@ -579,17 +819,124 @@ export class ExtractionService {
   }
 }
 
+/**
+ * Removes a node and everything that follows it in reading order, climbing to
+ * the root so a later sibling of an ancestor goes too.
+ */
+function dropEverythingAfter(node: Element, root: Element): void {
+  let current: Element | null = node;
+
+  while (current && current !== root) {
+    let sibling: Element | null = current.nextElementSibling;
+    while (sibling) {
+      const next: Element | null = sibling.nextElementSibling;
+      sibling.remove();
+      sibling = next;
+    }
+    current = current.parentElement;
+  }
+
+  node.remove();
+}
+
+/** True for an element a reader would see nothing of. */
+function isHollow(element: Element): boolean {
+  if (element.querySelector('img, br, hr, [data-cn-video]')) return false;
+  return !element.textContent?.trim().length;
+}
+
+/** The next sibling that actually shows something, skipping emptied shells. */
+function nextVisibleSibling(element: Element): Element | null {
+  let sibling = element.nextElementSibling;
+  while (sibling && isHollow(sibling)) sibling = sibling.nextElementSibling;
+  return sibling;
+}
+
+/**
+ * Below this, a result is short enough that it might be a truncated listicle
+ * rather than a short article, and worth a second parse.
+ */
+const RETRY_UNDER_CHARS = 2500;
+
+/** Plain-text length of an HTML fragment, for comparing two parses. */
+function textLengthOf(html: string): number {
+  if (!html) return 0;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return (doc.body?.textContent ?? '').replace(/\s+/g, ' ').trim().length;
+}
+
+/** Headings that mark the end of the article and the start of the rail. */
+const RAIL_HEADING =
+  /^(more from|more on|related|read more|you (might|may) also like|recommended|more stories|latest (news|stories)|trending|most read)\b/i;
+
+/**
+ * The publisher advertising itself. Deliberately about the *act of
+ * subscribing* rather than any one publisher's wording, so it generalises.
+ */
+const PROMO_TEXT =
+  /\bnever miss\b|\bbreaking news (and|alerts)\b|get breaking news|sign ?up (for|to)\b|subscribe (to|for)\b|straight to your inbox|delivered to your inbox|stay (informed|up to date)\b|download (our|the) app\b|follow us on\b|join our (whatsapp|telegram|community)\b/i;
+
+/** True when real reporting still follows, which makes this block mid-article. */
+function hasProseAfter(block: Element): boolean {
+  const walker = block.ownerDocument.createTreeWalker(
+    block.getRootNode() as Node,
+    NodeFilter.SHOW_ELEMENT,
+  );
+
+  let seen = false;
+  let node = walker.nextNode();
+  while (node) {
+    const element = node as Element;
+    if (element === block) seen = true;
+    else if (seen && !block.contains(element) && element.matches('p, li, blockquote')) {
+      const text = element.textContent?.trim() ?? '';
+      if (text.length > 200) return true;
+    }
+    node = walker.nextNode();
+  }
+  return false;
+}
+
+/** Link text that says the link is furniture rather than a reference. */
+const FURNITURE_LINK =
+  /^(newsletter|subscribe|sign ?up|follow|download|share|listen live|stream|our app|https?:\/\/)/i;
+
+/** A standalone picture credit, which our own caption already covers. */
+const CREDIT_LINE = /^(image|images|photo|photos|picture|pictures|source|credit)\s*:/i;
+
 /** Alt text publishers give their own logos and badges. */
 const FURNITURE_ALT = /^(logo|accreditation|advertisement|advert|ad|sponsored|masthead|icon)$/i;
+
+/**
+ * A URL that names interface furniture rather than a photograph. Publishers
+ * serve share buttons, app-store badges and section icons from paths that say
+ * exactly what they are, and no newsroom files its pictures under /icons/.
+ *
+ * SVG is the strongest signal of the set: press photography is raster.
+ */
+function looksLikeAsset(src: string | null): boolean {
+  if (!src) return false;
+  const path = src.split('?')[0].toLowerCase();
+  if (/\.svg$/.test(path)) return true;
+  return /(^|[/\-_.])(icons?|logos?|badges?|buttons?|sprites?|placeholders?)([/\-_.]|$)/.test(path);
+}
 
 /**
  * True for a masthead or badge rather than article art: either the alt text
  * says so, or the image is wrapped in a link back to the publisher's own front
  * page, which no real article photograph is.
  */
-function isPublisherFurniture(img: Element, baseUrl: string): boolean {
+function isPublisherFurniture(img: Element, baseUrl: string, resolvedSrc: string): boolean {
   const alt = img.getAttribute('alt')?.trim() ?? '';
   if (alt && FURNITURE_ALT.test(alt)) return true;
+
+  if (looksLikeAsset(resolvedSrc)) return true;
+
+  // Declared dimensions, when a publisher bothers to set them. Nothing this
+  // small is being shown to be looked at.
+  const width = Number(img.getAttribute('width'));
+  const height = Number(img.getAttribute('height'));
+  if ((width && width <= 64) || (height && height <= 64)) return true;
 
   const link = img.closest('a')?.getAttribute('href');
   if (!link) return false;

@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Backup is off deliberately. Spec section 3: no sync, no backend, all
+         work happens on device. Auto Backup would upload this app's database —
+         the feed list, the full reading history and the Guardian API key — to
+         the user's Google Drive, which is the thing that premise rules out.
+         data_extraction_rules is the Android 12+ counterpart. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

@@ -55,16 +55,25 @@ object NewsDb {
 
     /** Brings an existing database up to the current column set. */
     private fun addMissingColumns(db: SQLiteDatabase) {
-        val existing = db.rawQuery("PRAGMA table_info(articles)", null).use { c ->
+        addColumns(db, "articles", Schema.ADDED_COLUMNS)
+        addColumns(db, "feeds", Schema.ADDED_FEED_COLUMNS)
+    }
+
+    private fun addColumns(
+        db: SQLiteDatabase,
+        table: String,
+        columns: List<Pair<String, String>>
+    ) {
+        val existing = db.rawQuery("PRAGMA table_info($table)", null).use { c ->
             val names = mutableSetOf<String>()
             val nameIndex = c.getColumnIndex("name")
             while (c.moveToNext()) names.add(c.getString(nameIndex))
             names
         }
-        Schema.ADDED_COLUMNS.forEach { (column, statement) ->
+        columns.forEach { (column, statement) ->
             if (column !in existing) {
                 runCatching { db.execSQL(statement) }
-                    .onFailure { Log.w("NewsDb", "Could not add column $column", it) }
+                    .onFailure { Log.w("NewsDb", "Could not add $table.$column", it) }
             }
         }
     }

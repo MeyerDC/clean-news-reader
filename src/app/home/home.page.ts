@@ -1,4 +1,6 @@
-import { Component, OnInit, computed, effect, inject, signal } from '@angular/core';
+import {
+  Component, OnInit, QueryList, ViewChildren, computed, effect, inject, signal,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import {
   IonContent,
@@ -22,15 +24,17 @@ import { IonSearchbar } from '@ionic/angular';
 import { addIcons } from 'ionicons';
 import {
   settingsOutline, refreshOutline, trashOutline, documentTextOutline,
-  searchOutline, archiveOutline, closeOutline,
+  searchOutline, archiveOutline, closeOutline, downloadOutline,
 } from 'ionicons/icons';
 
-import { Article, ArticleFilter } from '../core/models';
-import { ArticleService } from '../core/article.service';
+import { Article, ArticleFilter, Topic } from '../core/models';
+import { ArticleService, DownloadOutcome } from '../core/article.service';
+import { TopicService } from '../core/topic.service';
 import { FeedService } from '../core/feed.service';
 import { SettingsService } from '../core/settings.service';
 import { PollService } from '../core/poll.service';
 import { SearchHit, SearchService } from '../core/search.service';
+import { SplitHeadline, splitHeadline } from '../core/headline';
 import { relativeTime } from '../core/time';
 import { hostLabel } from '../core/url';
 
@@ -45,16 +49,23 @@ import { hostLabel } from '../core/url';
   ],
 })
 export class HomePage implements OnInit {
+  /** The rows themselves, so the first one can demonstrate the swipe. */
+  @ViewChildren(IonItemSliding) private rows!: QueryList<IonItemSliding>;
+
   private readonly articles = inject(ArticleService);
   private readonly feeds = inject(FeedService);
   private readonly settings = inject(SettingsService);
   private readonly polls = inject(PollService);
   private readonly search = inject(SearchService);
+  private readonly topics = inject(TopicService);
   private readonly router = inject(Router);
   private readonly toasts = inject(ToastController);
 
   protected readonly items = signal<Article[]>([]);
   protected readonly sources = signal<string[]>([]);
+  protected readonly topicList = signal<Topic[]>([]);
+  /** Which set of chips the row is showing. Only offered once a topic exists. */
+  protected readonly chipMode = signal<'sources' | 'topics'>('sources');
   protected readonly filter = signal<ArticleFilter>({ kind: 'all' });
   protected readonly loading = signal(true);
   protected readonly searching = signal(false);
@@ -62,6 +73,12 @@ export class HomePage implements OnInit {
   protected readonly hits = signal<SearchHit[]>([]);
   protected readonly searchAvailable = signal(true);
   protected readonly lastRefresh = signal<number | null>(null);
+  /** Ids currently being fetched, mapped to how far along they are (0–1). */
+  protected readonly downloading = signal<Map<number, number>>(new Map());
+
+  /** FR-9 density: how much room one article gets. Applied as a class so the
+      list, the search results and the empty states all move together. */
+  protected readonly density = computed(() => this.settings.settings().listDensity);
 
   protected readonly lastRefreshLabel = computed(() => {
     const at = this.lastRefresh();
@@ -71,7 +88,7 @@ export class HomePage implements OnInit {
   constructor() {
     addIcons({
       settingsOutline, refreshOutline, trashOutline, documentTextOutline,
-      searchOutline, archiveOutline, closeOutline,
+      searchOutline, archiveOutline, closeOutline, downloadOutline,
     });
 
     // Re-read the list whenever the article table changes in-app, and whenever
@@ -86,6 +103,43 @@ export class HomePage implements OnInit {
   async ngOnInit(): Promise<void> {
     this.searchAvailable.set(this.search.available);
     await this.reload();
+    await this.showDownloadHint();
+  }
+
+  /**
+   * A swipe nobody is told about is the same as no feature. Once, on the first
+   * list that has anything in it, the top row opens far enough to show the
+   * download button and closes again.
+   *
+   * Marked as seen before it runs: a hint that reappears because the animation
+   * was interrupted is worse than one that is missed.
+   */
+  private async showDownloadHint(): Promise<void> {
+    if (!this.items().length) return;
+    if (await this.settings.downloadHintSeen()) return;
+
+    // The rows exist as data before they exist as components, so the query is
+    // empty for a frame or two after the list loads.
+    const first = await this.firstRow();
+    if (!first) return;
+
+    // Marked only once there is a row to demonstrate on, and before the
+    // animation rather than after: a hint that replays because it was
+    // interrupted is worse than one that is missed.
+    await this.settings.markDownloadHintSeen();
+
+    await first.open('start');
+    await new Promise((resolve) => setTimeout(resolve, 1600));
+    await first.close();
+  }
+
+  private async firstRow(): Promise<IonItemSliding | null> {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const row = this.rows?.first;
+      if (row) return row;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return null;
   }
 
   // ---- search ------------------------------------------------------------
@@ -124,7 +178,12 @@ export class HomePage implements OnInit {
 
   /** FR-5's images are gone for an archived article; say so rather than imply it. */
   protected hitMeta(hit: SearchHit): string {
-    const parts = [hit.article.sourceName || '', relativeTime(hit.article.publishedAt ?? hit.article.fetchedAt)];
+    // Same fallback the list uses: an article with no publisher still shows
+    // where it came from rather than a blank.
+    const parts = [
+      hit.article.sourceName || hostLabel(hit.article.url),
+      relativeTime(hit.article.publishedAt ?? hit.article.fetchedAt),
+    ];
     if (hit.field === 'body') parts.push('in the full text');
     return parts.filter(Boolean).join('  ·  ');
   }
@@ -136,14 +195,23 @@ export class HomePage implements OnInit {
 
   private async reload(): Promise<void> {
     try {
-      const [items, sources, lastRefresh] = await Promise.all([
+      const [items, sources, topics, lastRefresh] = await Promise.all([
         this.articles.list(this.filter()),
         this.articles.sources(),
+        this.topics.list(),
         this.settings.lastRefreshAt(),
       ]);
       this.items.set(items);
       this.sources.set(sources);
+      this.topicList.set(topics);
       this.lastRefresh.set(lastRefresh);
+
+      // A topic deleted in settings must not leave the list pinned to a filter
+      // that can no longer match anything.
+      const current = this.filter();
+      if (current.kind === 'topic' && !topics.some((t) => t.id === current.topicId)) {
+        await this.setFilter({ kind: 'all' });
+      }
     } catch {
       // A read failure here is not worth a modal; the empty state explains it.
       this.items.set([]);
@@ -158,12 +226,31 @@ export class HomePage implements OnInit {
     if (current.kind === 'source' && filter.kind === 'source') {
       return current.sourceName === filter.sourceName;
     }
+    if (current.kind === 'topic' && filter.kind === 'topic') {
+      return current.topicId === filter.topicId;
+    }
     return true;
   }
 
   protected async setFilter(filter: ArticleFilter): Promise<void> {
     this.filter.set(filter);
     await this.reload();
+  }
+
+  /**
+   * Switching the chip row is a view change, not a filter change — but leaving
+   * a source filter applied while showing topic chips would look broken, so an
+   * active chip from the other set is dropped.
+   */
+  protected async setChipMode(mode: 'sources' | 'topics'): Promise<void> {
+    this.chipMode.set(mode);
+    const current = this.filter();
+    if (
+      (mode === 'topics' && current.kind === 'source') ||
+      (mode === 'sources' && current.kind === 'topic')
+    ) {
+      await this.setFilter({ kind: 'all' });
+    }
   }
 
   /** FR-9: pull to refresh triggers an immediate poll. */
@@ -179,6 +266,40 @@ export class HomePage implements OnInit {
 
   protected open(article: Article): void {
     void this.router.navigate(['/article', article.id]);
+  }
+
+  /**
+   * Fetches an article before it is opened, for reading with no connection.
+   * The work is the same as opening it — extract, then cache the images — and
+   * the download is kept, so retention will not sweep it away before the
+   * flight it was downloaded for.
+   */
+  protected async download(article: Article, sliding: IonItemSliding): Promise<void> {
+    await sliding.close();
+    if (this.downloading().has(article.id)) return;
+
+    const setProgress = (fraction: number) =>
+      this.downloading.update((all) => new Map(all).set(article.id, fraction));
+
+    setProgress(0);
+    try {
+      const outcome = await this.articles.download(article.id, setProgress);
+      await this.toast(downloadMessage(outcome, article.title));
+    } catch {
+      await this.toast('Could not download that article.');
+    } finally {
+      this.downloading.update((all) => {
+        const next = new Map(all);
+        next.delete(article.id);
+        return next;
+      });
+      await this.reload();
+    }
+  }
+
+  private async toast(message: string): Promise<void> {
+    const toast = await this.toasts.create({ message, duration: 2600, position: 'bottom' });
+    await toast.present();
   }
 
   /** FR-9: swipe to dismiss an article from the list. */
@@ -206,6 +327,23 @@ export class HomePage implements OnInit {
     void this.router.navigate(['/settings']);
   }
 
+  /**
+   * Memoised because the template asks twice per row and change detection asks
+   * again on every pass. The key is the title itself, so a row that scrolls
+   * away and back costs nothing.
+   */
+  private readonly headlines = new Map<string, SplitHeadline>();
+
+  protected split(title: string): SplitHeadline {
+    let cached = this.headlines.get(title);
+    if (!cached) {
+      if (this.headlines.size > 2000) this.headlines.clear();
+      cached = splitHeadline(title);
+      this.headlines.set(title, cached);
+    }
+    return cached;
+  }
+
   protected meta(article: Article): string {
     const time = relativeTime(article.publishedAt ?? article.fetchedAt);
     // A shared article has no source until it has been extracted.
@@ -214,4 +352,25 @@ export class HomePage implements OnInit {
   }
 
   protected trackById = (_: number, article: Article): number => article.id;
+}
+
+/**
+ * Says what actually happened. A download that skipped every image because the
+ * user asked not to fetch pictures on mobile data is a success, but claiming
+ * "saved for offline" without saying so would be a promise the reader breaks
+ * later, in a tunnel, when the pictures are missing.
+ */
+export function downloadMessage(outcome: DownloadOutcome, title: string): string {
+  switch (outcome.state) {
+    case 'ok':
+      return outcome.images === 'cached'
+        ? 'Saved for offline.'
+        : 'Text saved. Images wait for Wi-Fi.';
+    case 'offline':
+      return 'No connection — nothing to download from.';
+    default:
+      return outcome.reason === 'paywall'
+        ? `${title} is paywalled.`
+        : 'That article could not be downloaded.';
+  }
 }

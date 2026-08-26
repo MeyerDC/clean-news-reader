@@ -41,7 +41,7 @@ import { ArticleService, ExtractionOutcome } from '../core/article.service';
 import { ExtractionService } from '../core/extraction.service';
 import { ImageCacheService, ReadyImage } from '../core/image-cache.service';
 import { SettingsService, FONT_SIZE_MAX, FONT_SIZE_MIN } from '../core/settings.service';
-import { DiscoveredFeed, FeedDiscoveryService } from '../core/feed-discovery.service';
+import { DiscoveredFeed, FeedDiscoveryService, describeFeed } from '../core/feed-discovery.service';
 import { FeedService } from '../core/feed.service';
 import { formatDate, readingTime, relativeTime } from '../core/time';
 import { hostLabel } from '../core/url';
@@ -385,7 +385,7 @@ export class ReaderPage implements OnInit, OnDestroy {
       header: 'Which feed?',
       buttons: [
         ...options.map((feed) => ({
-          text: `${feed.title} · ${feed.itemCount} items`,
+          text: `${feed.title} · ${describeFeed(feed)}`,
           handler: () => {
             void this.follow(feed);
           },
@@ -394,6 +394,11 @@ export class ReaderPage implements OnInit, OnDestroy {
       ],
     });
     await sheet.present();
+  }
+
+  /** Same wording as the settings picker, so the two agree. */
+  protected describe(feed: DiscoveredFeed): string {
+    return describeFeed(feed);
   }
 
   protected dismissOffer(): void {

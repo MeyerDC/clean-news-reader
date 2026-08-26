@@ -12,6 +12,11 @@ export const routes: Routes = [
     loadComponent: () => import('./reader/reader.page').then((m) => m.ReaderPage),
   },
   {
+    // 'new' creates one; an id edits it.
+    path: 'topics/:id',
+    loadComponent: () => import('./topic/topic.page').then((m) => m.TopicPage),
+  },
+  {
     path: 'settings',
     loadComponent: () => import('./settings/settings.page').then((m) => m.SettingsPage),
   },

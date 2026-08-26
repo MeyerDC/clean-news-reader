@@ -6,6 +6,7 @@ import { ThemeService } from './theme.service';
 import { IntentService } from './intent.service';
 import { PollService } from './poll.service';
 import { SearchService } from './search.service';
+import { SyncService } from './sync/sync.service';
 import { CleanNews } from './clean-news.plugin';
 
 /**
@@ -24,6 +25,7 @@ export class BootstrapService {
   private readonly intents = inject(IntentService);
   private readonly polls = inject(PollService);
   private readonly search = inject(SearchService);
+  private readonly sync = inject(SyncService);
 
   async run(): Promise<void> {
     try {
@@ -44,6 +46,10 @@ export class BootstrapService {
       // while the app was closed, and the list should not wait on indexing
       // them. Search simply catches up in the background.
       void this.search.catchUp().catch(() => undefined);
+
+      // Loads the linked account, if any, so settings and the poll know about
+      // it. Not awaited: nothing on screen depends on it.
+      void this.sync.load().catch(() => undefined);
     } catch (error) {
       this.fatalError.set(
         error instanceof Error ? error.message : 'Koppie & Print could not start.',

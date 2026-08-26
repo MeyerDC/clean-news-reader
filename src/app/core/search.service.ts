@@ -12,11 +12,15 @@ export interface SearchHit {
   field: 'title' | 'excerpt' | 'body';
 }
 
-type ArticleRow = Omit<Article, 'isSaved' | 'isRead' | 'isDismissed' | 'isArchived'> & {
+type ArticleRow = Omit<
+  Article,
+  'isSaved' | 'isRead' | 'isDismissed' | 'isArchived' | 'readPushPending'
+> & {
   isSaved: number;
   isRead: number;
   isDismissed: number;
   isArchived: number;
+  readPushPending: number;
 };
 
 /** Indexing runs in slices so a large catch-up never blocks the UI. */
@@ -214,6 +218,21 @@ export function toMatchExpression(raw: string): string | null {
   return tokens.length ? tokens.join(' AND ') : null;
 }
 
+/**
+ * OR of exact phrases, for topic keyword rules.
+ *
+ * Deliberately not the prefix matching that live search uses: "sport" as a
+ * search term should find "sports", but a topic rule that quietly widened
+ * itself would file the wrong articles for weeks before anyone noticed.
+ */
+export function toAnyPhraseExpression(terms: string[]): string | null {
+  const phrases = terms
+    .map((term) => sanitizeTerm(term))
+    .filter(Boolean)
+    .map((term) => `"${term}"`);
+  return phrases.length ? phrases.join(' OR ') : null;
+}
+
 function sanitizeTerm(value: string): string {
   return value.replace(/["*():^{}[\]-]/g, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -246,5 +265,6 @@ function hydrate(row: ArticleRow): Article {
     isRead: toBool(row.isRead),
     isDismissed: toBool(row.isDismissed),
     isArchived: toBool(row.isArchived),
+    readPushPending: toBool(row.readPushPending),
   };
 }

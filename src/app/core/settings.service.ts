@@ -9,11 +9,22 @@ export const SettingKeys = {
   guardianApiKey: 'guardianApiKey',
   theme: 'theme',
   fontSize: 'fontSize',
+  listDensity: 'listDensity',
   imagesOnMobileData: 'imagesOnMobileData',
   lastRefreshAt: 'lastRefreshAt',
+  downloadHintSeen: 'downloadHintSeen',
 } as const;
 
 export type ThemeChoice = 'light' | 'dark' | 'system';
+
+/**
+ * How much room one article gets in the list.
+ *
+ * Small drops the excerpt entirely rather than shrinking it: a two-line summary
+ * set any smaller stops being readable and becomes texture, and the point of
+ * the compact tier is to fit more *headlines* on screen, not more text.
+ */
+export type ListDensity = 'small' | 'medium' | 'large';
 
 export interface AppSettings {
   /** FR-1: default 30 minutes, configurable 15 minutes to 6 hours. */
@@ -24,6 +35,7 @@ export interface AppSettings {
   fontSize: number;
   /** FR-5: default on. */
   imagesOnMobileData: boolean;
+  listDensity: ListDensity;
 }
 
 export const POLL_INTERVAL_MIN = 15;
@@ -37,6 +49,7 @@ const DEFAULTS: AppSettings = {
   theme: 'system',
   fontSize: 19,
   imagesOnMobileData: true,
+  listDensity: 'medium',
 };
 
 @Injectable({ providedIn: 'root' })
@@ -71,6 +84,7 @@ export class SettingsService {
       ),
       imagesOnMobileData:
         (map.get(SettingKeys.imagesOnMobileData) ?? '1') === '1',
+      listDensity: readDensity(map.get(SettingKeys.listDensity)),
     };
 
     this.settings.set(next);
@@ -94,6 +108,7 @@ export class SettingsService {
       this.db.putSetting(SettingKeys.theme, next.theme),
       this.db.putSetting(SettingKeys.fontSize, String(next.fontSize)),
       this.db.putSetting(SettingKeys.imagesOnMobileData, next.imagesOnMobileData ? '1' : '0'),
+      this.db.putSetting(SettingKeys.listDensity, next.listDensity),
     ]);
 
     this.settings.set(next);
@@ -104,11 +119,29 @@ export class SettingsService {
     }
   }
 
+  /**
+   * One-off UI state rather than a preference, so it is read and written
+   * directly instead of joining AppSettings — nothing in the settings screen
+   * shows it, and it should not be rewritten every time something else changes.
+   */
+  async downloadHintSeen(): Promise<boolean> {
+    return (await this.db.getSetting(SettingKeys.downloadHintSeen)) === '1';
+  }
+
+  async markDownloadHintSeen(): Promise<void> {
+    await this.db.putSetting(SettingKeys.downloadHintSeen, '1');
+  }
+
   async lastRefreshAt(): Promise<number | null> {
     const raw = await this.db.getSetting(SettingKeys.lastRefreshAt);
     const parsed = raw ? parseInt(raw, 10) : NaN;
     return Number.isFinite(parsed) ? parsed : null;
   }
+}
+
+/** An unrecognised stored value falls back rather than reaching the class list. */
+function readDensity(raw: string | undefined): ListDensity {
+  return raw === 'small' || raw === 'large' ? raw : DEFAULTS.listDensity;
 }
 
 function clamp(value: number, min: number, max: number): number {

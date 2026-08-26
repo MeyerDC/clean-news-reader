@@ -82,3 +82,22 @@ describe('image sources', () => {
     expect(result.html).not.toMatch(/file:|content:/i);
   });
 });
+
+describe('image scheme allow-list', () => {
+  it.each([
+    ['http', 'http://cdn.example/a.jpg', true],
+    ['https', 'https://cdn.example/a.jpg', true],
+    ['protocol-relative', '//cdn.example/a.jpg', true],
+    ['relative path', '/img/a.jpg', true],
+    ['ftp', 'ftp://cdn.example/a.jpg', false],
+    ['file', 'file:///etc/passwd', false],
+    ['content', 'content://media/external/images/1', false],
+    ['javascript', 'javascript:alert(1)', false],
+  ])('%s image is %s', (_label, src, allowed) => {
+    const result = service.cleanBody(`<img src="${src}"><p>body</p>`, URL_BASE);
+    expect(result.images.length > 0).toBe(allowed);
+    for (const image of result.images) {
+      expect(image.url).toMatch(/^https?:\/\//i);
+    }
+  });
+});
