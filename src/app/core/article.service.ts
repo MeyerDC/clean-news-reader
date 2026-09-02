@@ -27,6 +27,15 @@ type ArticleRow = Omit<
  * "Load images on mobile data" is off for some people, and a download that
  * quietly skipped every picture while saying "done" would be a lie.
  */
+/** One entry in the curated list, with the reason it was chosen. */
+export interface CuratedPick {
+  article: Article;
+  /** 'filler' was picked at random to make the count up to ten. */
+  pool: 'recent' | 'filler';
+  /** Webview-safe src for the cached thumbnail, null until one is fetched. */
+  thumbSrc: string | null;
+}
+
 export type DownloadOutcome =
   | { state: 'ok'; images: 'cached' | 'deferred' }
   | { state: 'failed'; reason: 'paywall' | 'other' | 'video'; detail: string }
@@ -63,8 +72,14 @@ export class ArticleService {
     // Archived articles are searchable but not browsable — they are a text
     // record, not a readable cached page.
     // Aliased as `a` because a topic clause is built against that alias.
-    const where: string[] = ['a.isDismissed = 0', 'a.isArchived = 0'];
+    const where: string[] = ['a.isDismissed = 0'];
     const params: unknown[] = [];
+
+    // Reading history is the one view that must see archived rows. Archiving is
+    // what happens to an article two days after you read it — images released,
+    // text kept — so excluding them here would leave a history stretching back
+    // exactly two days, which is not a history.
+    if (filter.kind !== 'read') where.push('a.isArchived = 0');
 
     switch (filter.kind) {
       case 'unread':
@@ -72,6 +87,9 @@ export class ArticleService {
         break;
       case 'saved':
         where.push('a.isSaved = 1');
+        break;
+      case 'read':
+        where.push('a.isRead = 1');
         break;
       case 'source':
         where.push('a.sourceName = ?');
@@ -91,15 +109,68 @@ export class ArticleService {
         break;
     }
 
+    // History is ordered by when you read it, not when it was published: the
+    // question it answers is "what was I reading", not "what came out".
+    // archivedAt stands in for rows read before readAt existed.
+    const order =
+      filter.kind === 'read'
+        ? 'COALESCE(a.readAt, a.archivedAt, a.publishedAt, a.fetchedAt, 0)'
+        : 'COALESCE(a.publishedAt, a.fetchedAt, 0)';
+
     params.push(limit);
     const rows = await this.db.query<ArticleRow>(
       `SELECT a.* FROM articles a
        WHERE ${where.join(' AND ')}
-       ORDER BY COALESCE(a.publishedAt, a.fetchedAt, 0) DESC
+       ORDER BY ${order} DESC
        LIMIT ?`,
       params,
     );
     return rows.map(hydrate);
+  }
+
+  /**
+   * FR-3: the curated list — the articles picked for you rather than the ones
+   * that arrived last.
+   *
+   * Read, never written, here. The picks are chosen by the native curator
+   * because the widget shows the same list and has to be fed while the app is
+   * closed; computing them again in TypeScript would give the two surfaces
+   * their own opinion of what the top ten are.
+   *
+   * Read articles are kept, unlike in the widget. Tapping a card, reading, and
+   * coming back to find it gone from under your thumb is worse than seeing it
+   * marked as read — the widget drops them because it is a shortlist you work
+   * through, which is a different job.
+   */
+  async curated(limit = 10): Promise<CuratedPick[]> {
+    const rows = await this.db.query<ArticleRow & { pool: string; thumbPath: string | null }>(
+      `SELECT a.*, p.pool, p.thumbPath FROM curated_picks p
+       JOIN articles a ON a.id = p.articleId
+       WHERE a.isDismissed = 0 AND a.isArchived = 0
+       ORDER BY p.rank
+       LIMIT ?`,
+      [limit],
+    );
+    return Promise.all(
+      rows.map(async (row) => ({
+        article: hydrate(row),
+        pool: row.pool === 'filler' ? ('filler' as const) : ('recent' as const),
+        // The remote URL is useless here: the page's CSP forbids loading an
+        // image from a publisher, which is what keeps the app from announcing
+        // your reading to every newsroom you follow. The native side has
+        // already fetched the file; this is the same picture, off disk.
+        thumbSrc: row.thumbPath ? await this.images.toWebviewSrc(row.thumbPath) : null,
+      })),
+    );
+  }
+
+  /** When the curated list was last rebuilt, for the section's subtitle. */
+  async curatedAt(): Promise<number | null> {
+    const row = await this.db.queryOne<{ value: string }>(
+      `SELECT value FROM settings WHERE key = 'curatedAt'`,
+    );
+    const at = Number(row?.value);
+    return Number.isFinite(at) && at > 0 ? at : null;
   }
 
   async get(id: number): Promise<Article | null> {

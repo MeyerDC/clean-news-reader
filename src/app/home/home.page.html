@@ -16,7 +16,7 @@
     (ionInput)="onSearch($any($event).detail.value ?? '')"
     (ionClear)="clearSearch()" />
 
-  <!-- FR-9 filters: All / Unread / Saved / by source. Hidden while searching,
+  <!-- FR-9 filters: All / Unread / Saved / Read / by source. Hidden while searching,
        because a search runs across everything by design. -->
   @if (!isSearching) {
   <div class="cn-filters">
@@ -37,6 +37,12 @@
       [class.cn-chip-active]="isActive({ kind: 'saved' })"
       (click)="setFilter({ kind: 'saved' })">
       Saved
+    </button>
+    <button
+      class="cn-chip"
+      [class.cn-chip-active]="isActive({ kind: 'read' })"
+      (click)="setFilter({ kind: 'read' })">
+      Read
     </button>
 
     <span class="cn-chip-divider"></span>
@@ -144,12 +150,50 @@
       @switch (filter().kind) {
         @case ('unread') { <p>Nothing unread.</p> }
         @case ('saved') { <p>Nothing saved yet. Share a link here from any app.</p> }
+        @case ('read') { <p>Nothing read yet. Articles you open appear here.</p> }
         @case ('topic') { <p>Nothing matches this topic yet.</p> }
         @default { <p>No articles yet. Pull down to refresh.</p> }
       }
       <span class="cn-empty-meta">{{ lastRefreshLabel() }}</span>
     </div>
   } @else {
+    <!-- FR-3: the curated picks. A horizontal rail rather than ten more rows:
+         it has to read as a different kind of thing from the chronological
+         list below it, or it is just the top of the list with a heading. -->
+    @if (showPicks()) {
+      <section class="cn-picks">
+        <header class="cn-picks-head">
+          <h2>For you</h2>
+          <span>{{ picksLabel() }}</span>
+        </header>
+        <div class="cn-picks-list">
+          @for (pick of picks(); track pick.article.id) {
+            <button
+              class="cn-pick"
+              [class.cn-pick-read]="pick.article.isRead"
+              (click)="open(pick.article)">
+              <div class="cn-pick-text">
+                <p class="cn-pick-title">{{ split(pick.article.title).headline }}</p>
+                <p class="cn-pick-meta">
+                  {{ pick.article.sourceName }}
+                  @if (pick.pool === 'filler') { <em>· picked at random</em> }
+                </p>
+              </div>
+              <div class="cn-pick-thumb">
+                @if (pick.thumbSrc) {
+                  <img [src]="pick.thumbSrc" alt="" loading="lazy" decoding="async" />
+                } @else {
+                  <!-- Two of the seeded feeds publish no pictures at all, so a
+                       thumbless pick is routine rather than an error. The
+                       source name stands in; a grey box reads as a failure. -->
+                  <span class="cn-pick-noimage">{{ pick.article.sourceName }}</span>
+                }
+              </div>
+            </button>
+          }
+        </div>
+      </section>
+    }
     <ion-list lines="none">
       @for (article of items(); track article.id) {
         <ion-item-sliding #sliding>

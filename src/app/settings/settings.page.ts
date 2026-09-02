@@ -521,10 +521,23 @@ export class SettingsPage implements OnInit {
 
   protected async setDensity(density: ListDensity): Promise<void> {
     await this.settings.update({ listDensity: density });
+    // The widget follows the same setting, and nothing else would tell it:
+    // its next redraw could otherwise be half an hour away.
+    await CleanNews.refreshWidget().catch(() => undefined);
   }
 
   protected async setFontSize(size: number): Promise<void> {
     await this.settings.update({ fontSize: size });
+  }
+
+  /**
+   * FR-3: turning the picks off leaves the curator running. It costs almost
+   * nothing, the widget may still be showing them, and the reading history it
+   * builds is what makes the list worth turning back on later.
+   */
+  protected async setCuratedEnabled(value: boolean): Promise<void> {
+    await this.settings.update({ curatedEnabled: value });
+    await CleanNews.refreshWidget().catch(() => undefined);
   }
 
   protected async setImagesOnMobileData(value: boolean): Promise<void> {

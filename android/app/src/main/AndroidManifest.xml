@@ -43,6 +43,42 @@
                 <data android:mimeType="text/x-uri" />
             </intent-filter>
 
+            <!-- Offer this app when a link from a followed publisher is tapped
+                 elsewhere. Scoped to these domains on purpose: a filter for all
+                 of https would put this app in the chooser for every link on the
+                 phone, which is a browser's job, not a reader's.
+
+                 These can never be *verified* App Links — that needs an
+                 assetlinks.json served from each publisher's own domain, and
+                 they are not ours. So on Android 12+ the app is listed but
+                 dormant until "Open supported links" is switched on for it in
+                 Settings; the share sheet remains the route that always works.
+
+                 The list is static, so a feed added later is not covered. -->
+            <intent-filter android:label="@string/share_target_label">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:scheme="http" />
+                <data android:host="dailymaverick.co.za" />
+                <data android:host="*.dailymaverick.co.za" />
+                <data android:host="groundup.org.za" />
+                <data android:host="*.groundup.org.za" />
+                <data android:host="mybroadband.co.za" />
+                <data android:host="*.mybroadband.co.za" />
+                <data android:host="businesstech.co.za" />
+                <data android:host="*.businesstech.co.za" />
+                <data android:host="iol.co.za" />
+                <data android:host="*.iol.co.za" />
+                <data android:host="timeslive.co.za" />
+                <data android:host="*.timeslive.co.za" />
+                <data android:host="theguardian.com" />
+                <data android:host="*.theguardian.com" />
+                <data android:host="ewn.co.za" />
+                <data android:host="*.ewn.co.za" />
+            </intent-filter>
+
             <!-- FR-3: widget rows launch straight into the reader view. -->
             <intent-filter>
                 <action android:name="com.dmeyer.cleannews.OPEN_ARTICLE" />

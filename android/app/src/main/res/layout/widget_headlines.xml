@@ -57,9 +57,15 @@
                 android:textColor="@color/widget_text_secondary" />
         </LinearLayout>
 
+        <!-- Padded well beyond the icon: it sits inside the header, which now
+             opens the app, so a near-miss must still land on refresh rather
+             than launching the reader. A child's click target wins over its
+             parent's, but only where the child actually is. -->
         <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:id="@+id/widget_refresh"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:padding="12dp"
             android:src="@drawable/ic_widget_refresh"
             android:contentDescription="@string/widget_refresh" />
     </LinearLayout>

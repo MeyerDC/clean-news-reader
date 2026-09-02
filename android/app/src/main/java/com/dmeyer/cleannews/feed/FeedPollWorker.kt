@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.dmeyer.cleannews.bridge.PollEvents
+import com.dmeyer.cleannews.data.Curator
 import com.dmeyer.cleannews.data.ExtractionState
 import com.dmeyer.cleannews.data.NewsDb
 import com.dmeyer.cleannews.data.NewsDb.intOr
@@ -14,6 +15,7 @@ import com.dmeyer.cleannews.data.NewsDb.longOrNull
 import com.dmeyer.cleannews.data.NewsDb.stringOrNull
 import com.dmeyer.cleannews.data.Retention
 import com.dmeyer.cleannews.data.SettingKeys
+import com.dmeyer.cleannews.data.Thumbnails
 import com.dmeyer.cleannews.widget.HeadlinesWidgetProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -56,6 +58,17 @@ class FeedPollWorker(context: Context, params: WorkerParameters) :
             stored = pollAllFeeds(db)
             NewsDb.putSetting(db, SettingKeys.LAST_REFRESH_AT, System.currentTimeMillis().toString())
             runRetentionIfDue(db)
+            // Gated on its own clock, not the poll's: the curated list is meant
+            // to hold still for a couple of hours, so most polls leave it alone.
+            // It runs after retention so it never picks a story that is about
+            // to be archived out from under it.
+            Curator.runIfDue(db)
+            // Every poll, not only when the picks change. A feed supplies an
+            // article's picture on a later poll than the one that first carried
+            // the headline, so a pick chosen before its imageUrl arrived would
+            // otherwise sit in the widget with an empty frame until the next
+            // curation — hours away. Costs one query when nothing is missing.
+            Thumbnails.sync(applicationContext, db)
         } catch (e: Exception) {
             Log.e(TAG, "Poll run failed", e)
             // A whole-run failure is worth retrying; per-feed failures are

@@ -28,6 +28,7 @@ import {
 } from 'ionicons/icons';
 
 import { Article, ArticleFilter, Topic } from '../core/models';
+import { CuratedPick } from '../core/article.service';
 import { ArticleService, DownloadOutcome } from '../core/article.service';
 import { TopicService } from '../core/topic.service';
 import { FeedService } from '../core/feed.service';
@@ -62,6 +63,9 @@ export class HomePage implements OnInit {
   private readonly toasts = inject(ToastController);
 
   protected readonly items = signal<Article[]>([]);
+  /** FR-3: the curated picks, shown above the list on the unfiltered view. */
+  protected readonly picks = signal<CuratedPick[]>([]);
+  protected readonly curatedAt = signal<number | null>(null);
   protected readonly sources = signal<string[]>([]);
   protected readonly topicList = signal<Topic[]>([]);
   /** Which set of chips the row is showing. Only offered once a topic exists. */
@@ -195,13 +199,28 @@ export class HomePage implements OnInit {
 
   private async reload(): Promise<void> {
     try {
-      const [items, sources, topics, lastRefresh] = await Promise.all([
-        this.articles.list(this.filter()),
+      const [items, sources, topics, lastRefresh, picks, curatedAt] = await Promise.all([
+        // History is a record that only grows, so it gets a far larger window
+        // than the browsing list. It is still a window: a few years of reading
+        // is thousands of rows, and this list is not virtualised. Search
+        // already reaches the whole archive, including rows older than this.
+        this.articles.list(this.filter(), this.filter().kind === 'read' ? 1000 : 200),
         this.articles.sources(),
         this.topics.list(),
         this.settings.lastRefreshAt(),
+        this.articles.curated(),
+        this.articles.curatedAt(),
       ]);
-      this.items.set(items);
+      this.picks.set(picks);
+      this.curatedAt.set(curatedAt);
+
+      // A pick shown above must not appear again below: the same headline twice
+      // on one screen reads as a bug, and it wastes the room the section was
+      // given. Only the picks actually on screen are removed — if the section
+      // is hidden, or a filter is on, the list is the whole list again. The
+      // widget applies the same rule for the same reason.
+      const shown = this.showPicks() ? new Set(picks.map((p) => p.article.id)) : null;
+      this.items.set(shown ? items.filter((a) => !shown.has(a.id)) : items);
       this.sources.set(sources);
       this.topicList.set(topics);
       this.lastRefresh.set(lastRefresh);
@@ -218,6 +237,32 @@ export class HomePage implements OnInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /**
+   * Shown only on the unfiltered list. Inside "Saved" or a topic the reader has
+   * asked a specific question, and answering it with ten articles chosen on
+   * other grounds would be a category error.
+   */
+  /** Says when the picks were chosen, so a list that has not moved reads as
+      deliberate rather than stuck. */
+  protected picksLabel(): string {
+    const at = this.curatedAt();
+    if (!at) return '';
+    const mins = Math.round((Date.now() - at) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} min ago`;
+    const hours = Math.round(mins / 60);
+    return hours === 1 ? 'an hour ago' : `${hours} hours ago`;
+  }
+
+  protected showPicks(): boolean {
+    return (
+      this.settings.settings().curatedEnabled &&
+      this.filter().kind === 'all' &&
+      !this.searching() &&
+      this.picks().length > 0
+    );
   }
 
   protected isActive(filter: ArticleFilter): boolean {

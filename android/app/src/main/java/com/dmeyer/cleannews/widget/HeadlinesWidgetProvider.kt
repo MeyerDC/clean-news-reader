@@ -45,7 +45,7 @@ class HeadlinesWidgetProvider : AppWidgetProvider() {
         }
 
         if (intent.action == ACTION_REFRESH) {
-            // Header tap: kick a poll and show that something is happening.
+            // Refresh tap: kick a poll and show that something is happening.
             PollScheduler.pollNow(context)
             val manager = AppWidgetManager.getInstance(context)
             manager.getAppWidgetIds(ComponentName(context, HeadlinesWidgetProvider::class.java))
@@ -81,12 +81,28 @@ class HeadlinesWidgetProvider : AppWidgetProvider() {
         views.setRemoteAdapter(R.id.widget_list, serviceIntent)
         views.setEmptyView(R.id.widget_list, R.id.widget_empty)
 
-        // FR-3: the header doubles as a manual refresh button.
+        // The masthead opens the app. It is the largest target on the widget and
+        // the one that looks least like a button, so spending it on a refresh
+        // that the icon beside it already offers was the wrong trade: tapping a
+        // logo means "take me there" everywhere else on the phone.
+        views.setOnClickPendingIntent(
+            R.id.widget_header,
+            PendingIntent.getActivity(
+                context,
+                3,
+                Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        )
+
+        // FR-3: manual refresh, now on the icon that has always depicted it.
         val refreshIntent = Intent(context, HeadlinesWidgetProvider::class.java).apply {
             action = ACTION_REFRESH
         }
         views.setOnClickPendingIntent(
-            R.id.widget_header,
+            R.id.widget_refresh,
             PendingIntent.getBroadcast(
                 context,
                 0,

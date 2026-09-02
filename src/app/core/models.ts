@@ -113,6 +113,8 @@ export type ArticleFilter =
   | { kind: 'all' }
   | { kind: 'unread' }
   | { kind: 'saved' }
+  /** Everything you have read, including what has since been archived. */
+  | { kind: 'read' }
   | { kind: 'source'; sourceName: string }
   | { kind: 'topic'; topicId: number };
 

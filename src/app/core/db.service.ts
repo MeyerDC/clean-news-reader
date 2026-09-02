@@ -60,6 +60,22 @@ const TABLE_SCHEMA: string[] = [
      height INTEGER,
      caption TEXT
    )`,
+  // The curated list. Written by the native curator — it must run with the app
+  // closed, because the widget shows the same picks — and read here. One
+  // writer, two readers, so the app and the widget cannot disagree about what
+  // was chosen. Stored rather than computed live because the selection has to
+  // hold still between refreshes.
+  `CREATE TABLE IF NOT EXISTS curated_picks (
+     articleId INTEGER PRIMARY KEY,
+     rank INTEGER NOT NULL,
+     /* Which pool it came from, so the app can say why, and so a random
+        filler is never later mistaken for evidence of interest. */
+     pool TEXT NOT NULL,
+     /* Written by the widget's thumbnail fetch. The app renders imageUrl
+        directly and never reads this. */
+     thumbPath TEXT,
+     curatedAt INTEGER NOT NULL
+   )`,
   `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`,
   // A topic is a rule, not a tag. Three clauses, OR'd together, each matching
   // a different article-level signal — because no single signal covers every
@@ -98,6 +114,7 @@ const INDEX_SCHEMA: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_articles_list ON articles (isDismissed, isArchived, publishedAt DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_articles_indexed ON articles (indexedAt)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_images_article_url ON cached_images (articleId, remoteUrl)`,
+  `CREATE INDEX IF NOT EXISTS idx_curated_rank ON curated_picks (rank)`,
 ];
 
 /**

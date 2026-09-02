@@ -41,6 +41,13 @@ class MainActivity : BridgeActivity() {
                 if (articleId > 0) IntentRouter.publish(IntentRouter.article(articleId))
             }
 
+            // A link tapped in another app. Same destination as a share: the
+            // article is imported and opened here rather than in a browser.
+            intent.action == Intent.ACTION_VIEW -> {
+                val url = UrlNormalizer.firstUrlIn(intent.dataString)
+                if (url != null) IntentRouter.publish(IntentRouter.share(url))
+            }
+
             // FR-8: share sheet. The shared text is scanned for the first URL.
             intent.action == Intent.ACTION_SEND -> {
                 val shared = intent.getStringExtra(Intent.EXTRA_TEXT)
@@ -58,7 +65,9 @@ class MainActivity : BridgeActivity() {
 
         // Consumed: a configuration change must not replay the same navigation.
         intent.removeExtra(EXTRA_ARTICLE_ID)
-        if (intent.action == Intent.ACTION_SEND) intent.action = Intent.ACTION_MAIN
+        if (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_VIEW) {
+            intent.action = Intent.ACTION_MAIN
+        }
     }
 
     companion object {

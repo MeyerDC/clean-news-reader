@@ -109,15 +109,26 @@ object Retention {
     fun clearCache(context: Context, db: SQLiteDatabase): Int {
         // Archived rows hold no files, only text, so clearing the *cache*
         // leaves them alone — that is the point of keeping them.
-        val ids = db.rawQuery(
-            "SELECT id FROM articles WHERE isSaved = 0 AND isArchived = 0", null
-        ).use { c ->
-            val list = mutableListOf<Long>()
-            while (c.moveToNext()) list.add(c.getLong(0))
-            list
-        }
-        deleteArticles(context, db, ids)
-        return ids.size
+        //
+        // An article read in the last two days is in the same position: it is
+        // reading history that retention has simply not archived yet. It is
+        // archived here rather than deleted, which releases its images — the
+        // thing "clear cache" is actually for — while keeping the record. The
+        // alternative loses your most recent history and spares the oldest,
+        // which is exactly backwards.
+        fun idsWhere(clause: String): List<Long> =
+            db.rawQuery("SELECT id FROM articles WHERE $clause", null).use { c ->
+                val list = mutableListOf<Long>()
+                while (c.moveToNext()) list.add(c.getLong(0))
+                list
+            }
+
+        val toArchive = idsWhere("isSaved = 0 AND isArchived = 0 AND isRead = 1")
+        val toDelete = idsWhere("isSaved = 0 AND isArchived = 0 AND isRead = 0")
+
+        archiveArticles(context, db, toArchive)
+        deleteArticles(context, db, toDelete)
+        return toArchive.size + toDelete.size
     }
 
     fun deleteArticles(context: Context, db: SQLiteDatabase, ids: List<Long>) {

@@ -212,6 +212,22 @@
     </p>
   </ion-list>
 
+  <!-- FR-3: the curated picks, shown above the list and on the widget. -->
+  <ion-list lines="none">
+    <ion-list-header><ion-label>For you</ion-label></ion-list-header>
+    <ion-item>
+      <ion-toggle
+        [checked]="settings.settings().curatedEnabled"
+        (ionChange)="setCuratedEnabled($any($event).detail.checked)">
+        Show picked articles
+      </ion-toggle>
+    </ion-item>
+    <ion-note class="cn-note">
+      Ten articles chosen for you rather than by what arrived last, refreshed
+      every few hours. Off hides them here and on the widget.
+    </ion-note>
+  </ion-list>
+
   <!-- FR-5: image loading on mobile data, default on. -->
   <ion-list lines="none">
     <ion-list-header><ion-label>Images</ion-label></ion-list-header>

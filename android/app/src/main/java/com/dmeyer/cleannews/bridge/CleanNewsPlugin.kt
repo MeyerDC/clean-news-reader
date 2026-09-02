@@ -2,6 +2,7 @@ package com.dmeyer.cleannews.bridge
 
 import com.dmeyer.cleannews.data.NewsDb
 import com.dmeyer.cleannews.data.Retention
+import com.dmeyer.cleannews.data.Thumbnails
 import com.dmeyer.cleannews.data.Schema
 import com.dmeyer.cleannews.feed.PollScheduler
 import com.dmeyer.cleannews.widget.HeadlinesWidgetProvider
@@ -81,6 +82,10 @@ class CleanNewsPlugin : Plugin() {
     fun clearCache(call: PluginCall) {
         val db = NewsDb.get(context)
         val removed = Retention.clearCache(context, db)
+        // The widget's thumbnails are cached image files too, and they point at
+        // articles this has just deleted.
+        db.execSQL("DELETE FROM curated_picks")
+        Thumbnails.clear(context)
         HeadlinesWidgetProvider.refreshAll(context)
         call.resolve(JSObject().put("removed", removed))
     }
@@ -88,13 +93,31 @@ class CleanNewsPlugin : Plugin() {
     /** FR-6: "Delete from cache" for one article, files included. */
     @PluginMethod
     fun deleteArticle(call: PluginCall) {
-        val id = call.getLong("articleId")
+        // getLong alone returns null for every id small enough that the JSON
+        // bridge parsed it as an Integer — which is every id this app will ever
+        // have. Delete silently rejected itself for exactly that reason.
+        val id = call.getLong("articleId") ?: call.getInt("articleId")?.toLong()
         if (id == null || id <= 0) {
             call.reject("articleId is required")
             return
         }
         val db = NewsDb.get(context)
-        Retention.deleteArticles(context, db, listOf(id))
+
+        // Reading history is a record, not a cache: once an article has been
+        // read, that it was read is permanent and no single-article action
+        // removes it. Deleting one here frees its images and its place in the
+        // list — which is what "delete from cache" says — and leaves the row.
+        // An article never opened is not history and goes entirely.
+        val wasRead = db.rawQuery(
+            "SELECT isRead FROM articles WHERE id = ?",
+            arrayOf(id.toString())
+        ).use { c -> c.moveToFirst() && c.getInt(0) == 1 }
+
+        if (wasRead) {
+            Retention.archiveArticles(context, db, listOf(id))
+        } else {
+            Retention.deleteArticles(context, db, listOf(id))
+        }
         HeadlinesWidgetProvider.refreshAll(context)
         call.resolve()
     }

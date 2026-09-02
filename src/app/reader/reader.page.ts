@@ -11,6 +11,7 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { Browser } from '@capacitor/browser';
 import { Clipboard } from '@capacitor/clipboard';
+import { Share } from '@capacitor/share';
 import {
   IonContent,
   IonHeader,
@@ -34,6 +35,7 @@ import {
   textOutline,
   closeOutline,
   playCircleOutline,
+  shareOutline,
 } from 'ionicons/icons';
 
 import { Article } from '../core/models';
@@ -112,7 +114,7 @@ export class ReaderPage implements OnInit, OnDestroy {
     addIcons({
       ellipsisVertical, openOutline, refreshOutline,
       cloudOfflineOutline, lockClosedOutline, textOutline, closeOutline,
-      playCircleOutline,
+      playCircleOutline, shareOutline,
     });
   }
 
@@ -469,6 +471,13 @@ export class ReaderPage implements OnInit, OnDestroy {
           },
         },
         {
+          text: 'Share',
+          icon: 'share-outline',
+          handler: () => {
+            void this.share();
+          },
+        },
+        {
           text: 'Copy link',
           handler: () => {
             void this.copyLink();
@@ -501,6 +510,24 @@ export class ReaderPage implements OnInit, OnDestroy {
     await this.settings.update({ fontSize: next });
   }
 
+  /**
+   * FR-8 in reverse: the app already receives shared links, and this is the
+   * way back out. The publisher's URL is sent, never the cleaned local copy —
+   * what the recipient wants is the article, and they have no way to open a
+   * file from inside this app's sandbox.
+   */
+  private async share(): Promise<void> {
+    const article = this.article();
+    if (!article) return;
+    try {
+      await Share.share({ title: article.title, url: article.url });
+    } catch {
+      // Dismissing the sheet rejects, which is not a failure worth reporting;
+      // a real one leaves the link on the clipboard as a way through.
+      await Clipboard.write({ url: article.url }).catch(() => undefined);
+    }
+  }
+
   private async copyLink(): Promise<void> {
     const article = this.article();
     if (!article) return;
@@ -517,9 +544,14 @@ export class ReaderPage implements OnInit, OnDestroy {
   }
 
   private async confirmDelete(): Promise<void> {
+    // An article you have read cannot be removed entirely — reading history is
+    // a record, not a cache — so the dialog must not promise that it will be.
+    const wasRead = this.article()?.isRead ?? false;
     const alert = await this.alerts.create({
       header: 'Delete from cache?',
-      message: 'The article and its images are removed from this device.',
+      message: wasRead
+        ? 'Its images are freed and it leaves the list. It stays in your reading history.'
+        : 'The article and its images are removed from this device.',
       buttons: [
         { text: 'Cancel', role: 'cancel' },
         {

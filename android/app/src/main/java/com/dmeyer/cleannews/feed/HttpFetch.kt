@@ -101,6 +101,61 @@ object HttpFetch {
         }
     }
 
+    /**
+     * Bytes rather than text, for the widget's thumbnails. Separate from [get]
+     * because that one decodes to a String on the assumption the body is a
+     * feed, which would corrupt a JPEG beyond recognition.
+     *
+     * Returns null on anything unexpected: a missing thumbnail costs one grey
+     * frame in a list, which is not worth failing a poll over.
+     */
+    fun getBytes(url: String, maxBytes: Int): ByteArray? {
+        var currentUrl = url
+        var redirects = 0
+
+        while (true) {
+            val connection = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
+                instanceFollowRedirects = false
+                setRequestProperty("User-Agent", USER_AGENT)
+                setRequestProperty("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
+            }
+
+            try {
+                val status = connection.responseCode
+                if (status in 300..399) {
+                    val location = connection.getHeaderField("Location")
+                    if (location.isNullOrBlank() || redirects >= MAX_REDIRECTS) return null
+                    currentUrl = URL(URL(currentUrl), location).toString()
+                    redirects++
+                    continue
+                }
+                if (status !in 200..299) return null
+
+                return connection.inputStream.use { stream ->
+                    val buffer = ByteArrayOutputStream()
+                    val chunk = ByteArray(16 * 1024)
+                    while (true) {
+                        val read = stream.read(chunk)
+                        if (read <= 0) break
+                        buffer.write(chunk, 0, read)
+                        // Checked while reading rather than after: a publisher
+                        // serving a 20MB hero image should cost us the read, not
+                        // the memory.
+                        if (buffer.size() > maxBytes) return null
+                    }
+                    buffer.toByteArray()
+                }
+            } catch (_: Exception) {
+                return null
+            } finally {
+                connection.disconnect()
+            }
+        }
+    }
+
     private fun readBounded(stream: java.io.InputStream, contentType: String?): String {
         val buffer = ByteArrayOutputStream()
         val chunk = ByteArray(16 * 1024)

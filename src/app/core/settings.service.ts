@@ -11,6 +11,7 @@ export const SettingKeys = {
   fontSize: 'fontSize',
   listDensity: 'listDensity',
   imagesOnMobileData: 'imagesOnMobileData',
+  curatedEnabled: 'curatedEnabled',
   lastRefreshAt: 'lastRefreshAt',
   downloadHintSeen: 'downloadHintSeen',
 } as const;
@@ -36,6 +37,8 @@ export interface AppSettings {
   /** FR-5: default on. */
   imagesOnMobileData: boolean;
   listDensity: ListDensity;
+  /** FR-3: show the "For you" picks above the list. */
+  curatedEnabled: boolean;
 }
 
 export const POLL_INTERVAL_MIN = 15;
@@ -50,6 +53,7 @@ const DEFAULTS: AppSettings = {
   fontSize: 19,
   imagesOnMobileData: true,
   listDensity: 'medium',
+  curatedEnabled: true,
 };
 
 @Injectable({ providedIn: 'root' })
@@ -85,6 +89,7 @@ export class SettingsService {
       imagesOnMobileData:
         (map.get(SettingKeys.imagesOnMobileData) ?? '1') === '1',
       listDensity: readDensity(map.get(SettingKeys.listDensity)),
+      curatedEnabled: (map.get(SettingKeys.curatedEnabled) ?? '1') === '1',
     };
 
     this.settings.set(next);
@@ -109,6 +114,7 @@ export class SettingsService {
       this.db.putSetting(SettingKeys.fontSize, String(next.fontSize)),
       this.db.putSetting(SettingKeys.imagesOnMobileData, next.imagesOnMobileData ? '1' : '0'),
       this.db.putSetting(SettingKeys.listDensity, next.listDensity),
+      this.db.putSetting(SettingKeys.curatedEnabled, next.curatedEnabled ? '1' : '0'),
     ]);
 
     this.settings.set(next);

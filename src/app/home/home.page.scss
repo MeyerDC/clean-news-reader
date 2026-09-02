@@ -173,6 +173,31 @@
   .cn-row-meta {
     margin-top: 0.22rem;
   }
+
+  /* The picks follow the same bargain as the list: the compact tier buys more
+     headlines on screen, so the picture gives up room before the words do. */
+  .cn-pick {
+    padding: 0.55rem 1rem;
+    gap: 0.7rem;
+  }
+
+  .cn-pick-thumb {
+    flex-basis: 3.4rem;
+    height: 2.6rem;
+  }
+
+  .cn-pick-title {
+    font-size: 0.84rem;
+    -webkit-line-clamp: 2;
+  }
+
+  .cn-pick-meta {
+    font-size: 0.68rem;
+  }
+
+  .cn-pick-noimage {
+    font-size: 0.5rem;
+  }
 }
 
 .cn-density-large {
@@ -194,6 +219,29 @@
 
   .cn-row-meta {
     margin-top: 0.55rem;
+  }
+
+  .cn-pick {
+    padding: 0.95rem 1rem;
+    gap: 1rem;
+  }
+
+  .cn-pick-thumb {
+    flex-basis: 5.6rem;
+    height: 4.2rem;
+  }
+
+  .cn-pick-title {
+    font-size: 1.05rem;
+    line-height: 1.3;
+  }
+
+  .cn-pick-meta {
+    font-size: 0.78rem;
+  }
+
+  .cn-pick-noimage {
+    font-size: 0.68rem;
   }
 }
 
@@ -298,5 +346,141 @@
 
   ion-icon {
     font-size: 0.7rem;
+  }
+}
+
+/* FR-3: the curated picks.
+
+   Vertical, like the list below, but each row carries a thumbnail and the
+   section is fenced by a heading and a rule. The claim being made is about
+   *which* ten, not about ordering, so it has to be legible as a separate
+   section rather than as the top of the list. */
+.cn-picks {
+  padding: 0.9rem 0 0.2rem;
+  border-bottom: 1px solid var(--cn-border);
+  margin-bottom: 0.35rem;
+}
+
+.cn-picks-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0 1rem 0.5rem;
+
+  h2 {
+    font-family: var(--cn-sans);
+    font-size: 0.82rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cn-text-dim);
+    margin: 0;
+  }
+
+  span {
+    font-size: 0.72rem;
+    color: var(--cn-text-faint);
+  }
+}
+
+.cn-picks-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.cn-pick {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border: 0;
+  border-top: 1px solid var(--cn-border);
+  background: none;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+
+  &:first-child {
+    border-top: 0;
+  }
+}
+
+.cn-pick-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Fixed, small, and on the trailing edge: the headline is what is being
+   chosen between, so it starts at the same margin as every other row on the
+   screen and the picture supports it rather than leading it. */
+.cn-pick-thumb {
+  flex: 0 0 4.4rem;
+  height: 3.4rem;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--cn-surface-sunken);
+  border: 1px solid var(--cn-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+}
+
+/* Roughly one pick in five has no picture — two seeded feeds publish none at
+   all. The source name is a deliberate fallback: a column of empty grey boxes
+   reads as a loading failure. */
+.cn-pick-noimage {
+  font-family: var(--cn-serif);
+  font-style: italic;
+  font-size: 0.6rem;
+  line-height: 1.2;
+  color: var(--cn-text-faint);
+  padding: 0 0.25rem;
+  text-align: center;
+}
+
+.cn-pick-title {
+  font-family: var(--cn-sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--cn-text);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cn-pick-meta {
+  font-family: var(--cn-sans);
+  font-size: 0.72rem;
+  color: var(--cn-text-faint);
+  margin: 0;
+
+  em {
+    font-style: normal;
+    opacity: 0.8;
+  }
+}
+
+.cn-pick-read {
+  .cn-pick-title {
+    color: var(--cn-text-dim);
+    font-weight: 500;
+  }
+
+  .cn-pick-thumb {
+    opacity: 0.55;
   }
 }

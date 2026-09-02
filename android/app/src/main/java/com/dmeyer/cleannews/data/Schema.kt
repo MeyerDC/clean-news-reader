@@ -105,6 +105,26 @@ object Schema {
             deletedAt INTEGER NOT NULL
         )
         """,
+        // The curated list: the articles picked for you rather than the ones
+        // that arrived last. Written by the native curator (it has to run with
+        // the app closed, for the widget), read by both the app and the widget
+        // — one writer, two readers, so the two surfaces cannot disagree.
+        //
+        // A stored table rather than a live query because the selection has to
+        // hold still: it is refreshed every few hours, not on every poll.
+        """
+        CREATE TABLE IF NOT EXISTS curated_picks (
+            articleId INTEGER PRIMARY KEY,
+            rank INTEGER NOT NULL,
+            -- Which pool the pick came from, kept so the app can say why it
+            -- was chosen and so a filler is never mistaken for a real signal.
+            pool TEXT NOT NULL,
+            -- Set by the widget's thumbnail fetch; the app renders imageUrl
+            -- directly and has no use for it.
+            thumbPath TEXT,
+            curatedAt INTEGER NOT NULL
+        )
+        """,
         // Settings live in the database rather than in Preferences because the
         // WorkManager job needs the poll interval, the Guardian key and the
         // retention window without going through the webview.
@@ -117,7 +137,8 @@ object Schema {
         "CREATE INDEX IF NOT EXISTS idx_articles_feed ON articles (feedId)",
         "CREATE INDEX IF NOT EXISTS idx_articles_list ON articles (isDismissed, isArchived, publishedAt DESC)",
         "CREATE INDEX IF NOT EXISTS idx_articles_indexed ON articles (indexedAt)",
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_images_article_url ON cached_images (articleId, remoteUrl)"
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_images_article_url ON cached_images (articleId, remoteUrl)",
+        "CREATE INDEX IF NOT EXISTS idx_curated_rank ON curated_picks (rank)"
     )
 
     /**
@@ -212,6 +233,10 @@ object SettingKeys {
     const val LIST_DENSITY = "listDensity"
     const val IMAGES_ON_MOBILE_DATA = "imagesOnMobileData"
     const val LAST_REFRESH_AT = "lastRefreshAt"
+
+    /** When the curated list was last rebuilt, and how often it may be. */
+    const val CURATED_AT = "curatedAt"
+    const val CURATION_INTERVAL_MINUTES = "curationIntervalMinutes"
     const val LAST_CLEANUP_AT = "lastCleanupAt"
     const val FEEDS_SEEDED = "feedsSeeded"
 
