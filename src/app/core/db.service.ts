@@ -115,6 +115,14 @@ const ADDED_COLUMNS: [string, string][] = [
     'readPushPending',
     `ALTER TABLE articles ADD COLUMN readPushPending INTEGER NOT NULL DEFAULT 0`,
   ],
+  // The image the feed advertised, as a remote URL rather than a file.
+  // leadImagePath cannot serve here: it is written during extraction, so it
+  // exists exactly for articles that have been opened — the opposite of the
+  // set a curated list is built from.
+  ['imageUrl', `ALTER TABLE articles ADD COLUMN imageUrl TEXT`],
+  // When the article was read. isRead alone cannot say whether an interest is
+  // current or historical, which is the distinction the curator is built on.
+  ['readAt', `ALTER TABLE articles ADD COLUMN readAt INTEGER`],
 ];
 
 /** Columns added to `feeds`, mirrored in android/.../data/Schema.kt. */

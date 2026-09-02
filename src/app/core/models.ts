@@ -60,6 +60,17 @@ export interface Article {
   readPushPending: boolean;
   /** Pipe-wrapped lowercased feed categories: "|sport|maverick news|". */
   categories: string | null;
+  /**
+   * The image the feed advertised, still a remote URL. Distinct from
+   * leadImagePath, which is a cached file and only exists once the article has
+   * been extracted — that is, once it has been opened.
+   */
+  imageUrl: string | null;
+  /**
+   * When the article was read. Null while unread, and null for rows read
+   * before this column existed.
+   */
+  readAt: number | null;
 }
 
 /**

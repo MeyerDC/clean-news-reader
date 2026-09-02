@@ -225,6 +225,16 @@ class FeedPollWorker(context: Context, params: WorkerParameters) :
                             arrayOf<Any?>(encodeCategories(item.categories), existingId)
                         )
                     }
+                    // Same for the image: a story shared in by hand has none,
+                    // and the feed copy that arrives later is where it comes
+                    // from. Never overwrites one we already have.
+                    if (item.imageUrl != null) {
+                        db.execSQL(
+                            "UPDATE articles SET imageUrl = ? " +
+                                "WHERE id = ? AND (imageUrl IS NULL OR imageUrl = '')",
+                            arrayOf<Any?>(item.imageUrl, existingId)
+                        )
+                    }
                     continue
                 }
 
@@ -237,6 +247,11 @@ class FeedPollWorker(context: Context, params: WorkerParameters) :
                     put("sourceName", feed.sourceName)
                     put("excerpt", item.excerpt)
                     put("categories", encodeCategories(item.categories))
+                    // Kept as the advertised URL, not downloaded here: the poll
+                    // runs on every feed on a 30-minute cycle, and only the
+                    // handful of articles a curated list actually picks are
+                    // worth spending bytes on.
+                    put("imageUrl", item.imageUrl)
                     put("isSaved", 0)
                     put("isRead", 0)
                     put("isDismissed", 0)

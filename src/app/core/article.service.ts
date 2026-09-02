@@ -427,9 +427,10 @@ export class ArticleService {
     const changed = await this.db.run(
       `UPDATE articles
        SET isRead = 1,
+           readAt = ?,
            readPushPending = CASE WHEN remoteHash IS NOT NULL THEN 1 ELSE 0 END
        WHERE id = ? AND isRead = 0`,
-      [articleId],
+      [Date.now(), articleId],
     );
     if (changed > 0) {
       this.revision.update((n) => n + 1);

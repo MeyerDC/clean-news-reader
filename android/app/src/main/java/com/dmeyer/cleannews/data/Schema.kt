@@ -173,7 +173,16 @@ object Schema {
         // Pipe-delimited and pipe-wrapped, lowercased: "|sport|maverick news|".
         // The wrapping pipes let a rule match a whole category exactly with
         // LIKE '%|sport|%' rather than catching "sports betting" by accident.
-        "categories" to "ALTER TABLE articles ADD COLUMN categories TEXT"
+        "categories" to "ALTER TABLE articles ADD COLUMN categories TEXT",
+        // The image the feed advertised, kept as a remote URL rather than a
+        // file. leadImagePath cannot serve here: it is only written during
+        // extraction, so it exists exactly for articles that have been opened
+        // — the opposite of the set a curated list is built from.
+        "imageUrl" to "ALTER TABLE articles ADD COLUMN imageUrl TEXT",
+        // When the article was read. isRead alone cannot say whether an
+        // interest is current or historical, which is the distinction the
+        // curator is built on.
+        "readAt" to "ALTER TABLE articles ADD COLUMN readAt INTEGER"
     )
 
     /** Same idea for the feeds table. */

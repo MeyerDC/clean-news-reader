@@ -225,11 +225,17 @@ export class SyncService {
     const readElsewhere = rows.filter((row) => !unread.has(row.remoteHash)).map((row) => row.id);
     if (!readElsewhere.length) return;
 
+    // The service reports that a story is read, never when it was read, so
+    // readAt records when we learned it. That is the honest value: it is what
+    // the curator needs it for, and inventing the original moment would be
+    // worse than being a sync cycle late.
+    const now = Date.now();
     for (let i = 0; i < readElsewhere.length; i += 400) {
       const chunk = readElsewhere.slice(i, i + 400);
       await this.db.run(
-        `UPDATE articles SET isRead = 1 WHERE id IN (${chunk.map(() => '?').join(',')})`,
-        chunk,
+        `UPDATE articles SET isRead = 1, readAt = COALESCE(readAt, ?)
+         WHERE id IN (${chunk.map(() => '?').join(',')})`,
+        [now, ...chunk],
       );
     }
   }
@@ -322,14 +328,30 @@ export class SyncService {
       if (existing) {
         // The service is authoritative for read state only where the local side
         // has nothing queued to say.
+        //
+        // readAt follows isRead exactly, including back to null: the service
+        // can return a story to unread, and a row that is unread while still
+        // carrying a read time is a trap for anything that later reads the
+        // timestamp on its own.
         const remoteRead = !unread.has(story.hash);
         await this.db.run(
           `UPDATE articles SET remoteHash = ?,
              feedId = COALESCE(feedId, ?),
              sourceName = COALESCE(NULLIF(sourceName, ''), ?),
-             isRead = CASE WHEN readPushPending = 1 THEN isRead ELSE ? END
+             isRead = CASE WHEN readPushPending = 1 THEN isRead ELSE ? END,
+             readAt = CASE WHEN readPushPending = 1 THEN readAt
+                           WHEN ? = 1 THEN COALESCE(readAt, ?)
+                           ELSE NULL END
            WHERE id = ?`,
-          [story.hash, feedId, sourceName, remoteRead ? 1 : 0, existing.id],
+          [
+            story.hash,
+            feedId,
+            sourceName,
+            remoteRead ? 1 : 0,
+            remoteRead ? 1 : 0,
+            Date.now(),
+            existing.id,
+          ],
         );
         continue;
       }
@@ -339,8 +361,8 @@ export class SyncService {
         `INSERT OR IGNORE INTO articles
            (feedId, url, title, author, publishedAt, sourceName, excerpt,
             extractionState, isSaved, isRead, isDismissed, scrollPosition,
-            fetchedAt, remoteHash)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, 0, 0, ?, ?)`,
+            fetchedAt, remoteHash, readAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, 0, 0, ?, ?, ?)`,
         [
           feedId,
           story.url,
@@ -352,6 +374,7 @@ export class SyncService {
           unread.has(story.hash) ? 0 : 1,
           now,
           story.hash,
+          unread.has(story.hash) ? null : now,
         ],
       );
       articles++;
