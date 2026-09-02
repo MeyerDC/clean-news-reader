@@ -125,6 +125,33 @@ object Schema {
             curatedAt INTEGER NOT NULL
         )
         """,
+        // What the curator has learned about you, as counts rather than rows.
+        //
+        // A rollup because the evidence outlives the articles it came from:
+        // retention deletes an unread article after seven days, and that
+        // article being ignored is exactly the observation we need to keep.
+        //
+        // Both counters are exponentially decayed on write, at two rates, so
+        // "what you are reading this month" and "what you have always read"
+        // are both available without storing a history to re-scan.
+        """
+        CREATE TABLE IF NOT EXISTS interest_stats (
+            -- 'source' | 'category' | 'token' | 'author'
+            kind TEXT NOT NULL,
+            value TEXT NOT NULL,
+            -- Times an article carrying this feature was read, and times one
+            -- was shown and not read. Fractional: every write decays what is
+            -- already there before adding to it.
+            fastRead REAL NOT NULL DEFAULT 0,
+            fastSeen REAL NOT NULL DEFAULT 0,
+            slowRead REAL NOT NULL DEFAULT 0,
+            slowSeen REAL NOT NULL DEFAULT 0,
+            -- When the decay was last applied, so the next write knows how far
+            -- to age these counts before adding to them.
+            decayedAt INTEGER NOT NULL,
+            PRIMARY KEY (kind, value)
+        )
+        """,
         // Settings live in the database rather than in Preferences because the
         // WorkManager job needs the poll interval, the Guardian key and the
         // retention window without going through the webview.

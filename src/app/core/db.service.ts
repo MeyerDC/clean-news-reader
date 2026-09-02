@@ -76,6 +76,21 @@ const TABLE_SCHEMA: string[] = [
      thumbPath TEXT,
      curatedAt INTEGER NOT NULL
    )`,
+  // What the curator has learned, as decayed counts. A rollup because the
+  // evidence outlives its articles: retention deletes an unread article after
+  // seven days, and that article having been ignored is the observation worth
+  // keeping. Written by the native side only; mirrored here so whichever layer
+  // opens the database first creates the same shape.
+  `CREATE TABLE IF NOT EXISTS interest_stats (
+     kind TEXT NOT NULL,
+     value TEXT NOT NULL,
+     fastRead REAL NOT NULL DEFAULT 0,
+     fastSeen REAL NOT NULL DEFAULT 0,
+     slowRead REAL NOT NULL DEFAULT 0,
+     slowSeen REAL NOT NULL DEFAULT 0,
+     decayedAt INTEGER NOT NULL,
+     PRIMARY KEY (kind, value)
+   )`,
   `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`,
   // A topic is a rule, not a tag. Three clauses, OR'd together, each matching
   // a different article-level signal — because no single signal covers every

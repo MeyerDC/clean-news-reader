@@ -21,6 +21,8 @@ export interface CleanNewsPlugin {
 
   /** Re-renders the home-screen widget after in-app state changes. */
   refreshWidget(): Promise<void>;
+  /** FR-3: records that an article was read, for the curator to learn from. */
+  recordRead(options: { articleId: number }): Promise<void>;
 
   /** FR-11: total bytes held by the image cache. */
   getCacheSize(): Promise<{ bytes: number }>;

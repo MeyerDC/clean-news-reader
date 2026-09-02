@@ -1,5 +1,6 @@
 package com.dmeyer.cleannews.bridge
 
+import com.dmeyer.cleannews.data.Interest
 import com.dmeyer.cleannews.data.NewsDb
 import com.dmeyer.cleannews.data.Retention
 import com.dmeyer.cleannews.data.Thumbnails
@@ -68,6 +69,22 @@ class CleanNewsPlugin : Plugin() {
     @PluginMethod
     fun refreshWidget(call: PluginCall) {
         HeadlinesWidgetProvider.refreshAll(context)
+        call.resolve()
+    }
+
+    /**
+     * An article was read. Recorded natively because the curator that consumes
+     * it runs natively, and because this is the positive half of a pair whose
+     * negative half is written by retention.
+     */
+    @PluginMethod
+    fun recordRead(call: PluginCall) {
+        val id = call.getLong("articleId") ?: call.getInt("articleId")?.toLong()
+        if (id == null || id <= 0) {
+            call.reject("articleId is required")
+            return
+        }
+        Interest.recordRead(NewsDb.get(context), id)
         call.resolve()
     }
 

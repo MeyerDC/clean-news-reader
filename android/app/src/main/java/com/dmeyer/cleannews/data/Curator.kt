@@ -40,9 +40,6 @@ object Curator {
     /** No source may own more than this many of the picks. */
     private const val PER_SOURCE_CAP = 2
 
-    /** Candidates considered before the cap and the cut. */
-    private const val CANDIDATE_POOL = 300
-
     /** Chosen on merit. */
     private const val POOL_RECENT = "recent"
 
@@ -74,7 +71,11 @@ object Curator {
         return try {
             val picked = curate(db, now)
             NewsDb.putSetting(db, SettingKeys.CURATED_AT, now.toString())
-            Log.i(TAG, "Curated $picked picks (stale=$stale drained=$drained)")
+            Log.i(
+                TAG,
+                "Curated %d picks (stale=%s drained=%s confidence=%.2f)"
+                    .format(picked, stale, drained, Scorer.confidenceOf(db))
+            )
             true
         } catch (e: Exception) {
             // A failed curation must not fail the poll: the previous picks are
@@ -99,33 +100,36 @@ object Curator {
             null
         ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
 
+    /** Source names by id, so the per-source cap needs no join per candidate. */
+    private fun sourceNames(db: SQLiteDatabase): Map<Long, String> {
+        val map = HashMap<Long, String>()
+        db.rawQuery("SELECT id, COALESCE(sourceName, '') FROM articles", null).use { c ->
+            while (c.moveToNext()) map[c.getLong(0)] = c.getString(1)
+        }
+        return map
+    }
+
     private fun curate(db: SQLiteDatabase, now: Long): Int {
         val chosen = LinkedHashMap<Long, String>()
 
-        // Ranked on merit first. A paywalled or video-only article is skipped:
-        // promoting something that cannot be read cleanly wastes one of ten
-        // slots that are supposed to be the best of the day.
+        // Every eligible article is scored, not just the newest few hundred: a
+        // piece that matches this reader closely should be able to win a slot
+        // on its third day. The filters are hard gates inside the scorer —
+        // unread, not paywalled, not video-only — because promoting something
+        // that cannot be read cleanly wastes one of ten slots.
+        val ranked = Scorer.scoreAll(db, now)
+        val sources = sourceNames(db)
+
         val perSource = mutableMapOf<String, Int>()
-        db.rawQuery(
-            """
-            SELECT id, COALESCE(sourceName, '')
-            FROM articles
-            WHERE isRead = 0 AND isDismissed = 0 AND isArchived = 0
-              AND extractionState NOT IN ('failed_paywall', 'failed_video')
-            ORDER BY COALESCE(publishedAt, fetchedAt, 0) DESC
-            LIMIT $CANDIDATE_POOL
-            """.trimIndent(),
-            null
-        ).use { c ->
-            while (c.moveToNext() && chosen.size < STORED) {
-                val source = c.getString(1)
-                val used = perSource[source] ?: 0
-                // One prolific feed would otherwise own the whole list: on a
-                // busy afternoon Daily Maverick alone can fill ten slots.
-                if (source.isNotEmpty() && used >= PER_SOURCE_CAP) continue
-                perSource[source] = used + 1
-                chosen[c.getLong(0)] = POOL_RECENT
-            }
+        for (verdict in ranked) {
+            if (chosen.size >= STORED) break
+            val source = sources[verdict.articleId].orEmpty()
+            val used = perSource[source] ?: 0
+            // One prolific feed would otherwise own the whole list: on a busy
+            // afternoon Daily Maverick alone can fill ten slots.
+            if (source.isNotEmpty() && used >= PER_SOURCE_CAP) continue
+            perSource[source] = used + 1
+            chosen[verdict.articleId] = POOL_RECENT
         }
 
         // The list is always ten if ten exist. Anything short of that is topped

@@ -68,6 +68,10 @@ object Retention {
             Log.i(TAG, "Retention archived ${toArchive.size} read articles")
         }
         if (toDelete.isNotEmpty()) {
+            // Before the rows go, not after: an article that was shown for a
+            // week and never opened is the negative evidence the curator has no
+            // other way to obtain, and this is the last moment it exists.
+            Interest.recordIgnored(db, toDelete)
             deleteArticles(context, db, toDelete)
             Log.i(TAG, "Retention removed ${toDelete.size} unread articles")
         }

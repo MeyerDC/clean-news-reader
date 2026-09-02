@@ -505,6 +505,10 @@ export class ArticleService {
     );
     if (changed > 0) {
       this.revision.update((n) => n + 1);
+      // The positive half of the curator's evidence. Fired only on the
+      // transition, so re-opening an article does not count twice and inflate
+      // whatever it happens to be about.
+      await CleanNews.recordRead({ articleId }).catch(() => undefined);
       await CleanNews.refreshWidget().catch(() => undefined);
     }
   }
